@@ -1,0 +1,81 @@
+---
+title: "List Seasons"
+description: "Retrieve all seasons from the G5API system."
+---
+
+## Overview
+
+Returns all seasons recorded in the system, including each season's default CVARs if configured. This endpoint is publicly accessible — no authentication required.
+
+## Endpoint
+
+```
+GET /seasons/
+```
+
+## Response
+
+<ResponseField name="seasons" type="array">
+  Array of season objects.
+
+  <Expandable title="Season object fields">
+    <ResponseField name="id" type="integer">
+      The unique season ID.
+    </ResponseField>
+    <ResponseField name="user_id" type="integer">
+      The ID of the user who created the season.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      The name of the season.
+    </ResponseField>
+    <ResponseField name="start_date" type="string">
+      ISO 8601 start date for the season.
+    </ResponseField>
+    <ResponseField name="end_date" type="string">
+      ISO 8601 end date for the season. `null` if the season has no scheduled end.
+    </ResponseField>
+    <ResponseField name="cvars" type="object">
+      Key-value pairs of default server CVARs applied when this season is selected. Omitted if no CVARs are configured.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```bash
+curl https://your-g5api.example.com/seasons/
+```
+
+### Response
+
+```json
+{
+  "seasons": [
+    {
+      "id": 2,
+      "user_id": 1,
+      "name": "Spring 2026 League",
+      "start_date": "2026-03-01T00:00:00.000Z",
+      "end_date": "2026-06-30T00:00:00.000Z",
+      "cvars": {
+        "mp_overtime_enable": "1",
+        "mp_overtime_maxrounds": "6"
+      }
+    },
+    {
+      "id": 1,
+      "user_id": 1,
+      "name": "Winter 2025 League",
+      "start_date": "2025-12-01T00:00:00.000Z",
+      "end_date": "2026-02-28T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `404`  | No seasons found in the system. |
+| `500`  | Internal server error. |

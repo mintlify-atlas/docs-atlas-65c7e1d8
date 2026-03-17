@@ -1,0 +1,168 @@
+---
+title: "Leaderboard"
+description: "Team standings and player rankings aggregated across all matches or a specific season."
+---
+
+The leaderboard routes aggregate statistics from completed, non-cancelled matches and compute win/loss records, round differentials, and per-player performance metrics.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/leaderboard` | All-time team standings |
+| GET | `/leaderboard/:season_id` | Team standings for a season |
+| GET | `/leaderboard/players` | All-time player leaderboard |
+| GET | `/leaderboard/players/pug` | All-time PUG player leaderboard |
+| GET | `/leaderboard/players/:season_id` | Player leaderboard for a season |
+
+---
+
+## Team Standings
+
+### GET /leaderboard
+
+Returns all-time team standings computed from every completed, non-cancelled match with a recorded winner.
+
+```bash
+curl https://your-g5api.example.com/leaderboard
+```
+
+**Response `200`**
+
+```json
+{
+  "leaderboard": [
+    {
+      "name": "Team Alpha",
+      "wins": 12,
+      "losses": 4,
+      "rounddiff": 87
+    },
+    {
+      "name": "Team Bravo",
+      "wins": 9,
+      "losses": 7,
+      "rounddiff": -12
+    }
+  ]
+}
+```
+
+<ResponseField name="leaderboard" type="array">
+  <Expandable title="TeamStanding fields">
+    <ResponseField name="name" type="string">
+      Team name.
+    </ResponseField>
+    <ResponseField name="wins" type="integer">
+      Number of maps won across completed matches.
+    </ResponseField>
+    <ResponseField name="losses" type="integer">
+      Number of maps lost.
+    </ResponseField>
+    <ResponseField name="rounddiff" type="integer">
+      Cumulative round differential (rounds won minus rounds lost). Positive means the team tends to win rounds convincingly; negative means they tend to lose by larger margins.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  Teams are only counted if they still exist in the database (not deleted). PUG matches that use `team1_string` / `team2_string` instead of team IDs are excluded from team standings.
+</Note>
+
+### GET /leaderboard/:season_id
+
+Returns team standings filtered to a specific season.
+
+<ParamField path="season_id" type="integer" required>
+  The numeric season ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/leaderboard/3
+```
+
+---
+
+## Player Leaderboard
+
+Player leaderboards aggregate per-map stat rows from the `player_stats` table and compute derived metrics including headshot percentage and a HLTV-style rating.
+
+### GET /leaderboard/players
+
+Returns the all-time player leaderboard for official (non-PUG) matches.
+
+```bash
+curl https://your-g5api.example.com/leaderboard/players
+```
+
+**Response `200`**
+
+```json
+{
+  "leaderboard": [
+    {
+      "steamId": "76561198012345678",
+      "name": "playerOne",
+      "kills": 1240,
+      "deaths": 880,
+      "assists": 210,
+      "k1": 280, "k2": 130, "k3": 40, "k4": 8, "k5": 2,
+      "v1": 55, "v2": 20, "v3": 5, "v4": 1, "v5": 0,
+      "trp": 1400,
+      "fba": 32,
+      "total_damage": 156000,
+      "hsk": 510,
+      "hsp": 41.13,
+      "average_rating": 1.18,
+      "wins": 42,
+      "total_maps": 70,
+      "enemies_flashed": 190,
+      "friendlies_flashed": 45,
+      "util_damage": 8200
+    }
+  ]
+}
+```
+
+<ResponseField name="leaderboard" type="array">
+  <Expandable title="Player fields">
+    <ResponseField name="steamId" type="string">Player's Steam64 ID.</ResponseField>
+    <ResponseField name="name" type="string">Most recent in-game name. Falls back to Steam profile name if the database name is blank.</ResponseField>
+    <ResponseField name="kills" type="integer">Total kills across all counted maps.</ResponseField>
+    <ResponseField name="deaths" type="integer">Total deaths.</ResponseField>
+    <ResponseField name="assists" type="integer">Total assists.</ResponseField>
+    <ResponseField name="k1–k5" type="integer">Total rounds with 1, 2, 3, 4, or 5 kills.</ResponseField>
+    <ResponseField name="v1–v5" type="integer">Total clutch wins: 1v1 through 1v5.</ResponseField>
+    <ResponseField name="trp" type="integer">Total rounds played (sum of `roundsplayed`).</ResponseField>
+    <ResponseField name="fba" type="integer">Total flashbang assists.</ResponseField>
+    <ResponseField name="total_damage" type="integer">Total damage dealt.</ResponseField>
+    <ResponseField name="hsk" type="integer">Total headshot kills.</ResponseField>
+    <ResponseField name="hsp" type="number">Headshot percentage (`hsk / kills * 100`), rounded to 2 decimal places.</ResponseField>
+    <ResponseField name="average_rating" type="number">HLTV-style rating computed from kills, rounds, deaths, and multi-kill rounds.</ResponseField>
+    <ResponseField name="wins" type="integer">Number of maps won.</ResponseField>
+    <ResponseField name="total_maps" type="integer">Total maps played.</ResponseField>
+    <ResponseField name="enemies_flashed" type="integer">Total enemies flashed.</ResponseField>
+    <ResponseField name="friendlies_flashed" type="integer">Total teammates flashed.</ResponseField>
+    <ResponseField name="util_damage" type="integer">Total utility damage.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### GET /leaderboard/players/pug
+
+Same as `/leaderboard/players` but filtered to PUG matches (`is_pug = 1`). Win calculation uses the `player_stats.winner` column rather than team ID matching.
+
+```bash
+curl https://your-g5api.example.com/leaderboard/players/pug
+```
+
+### GET /leaderboard/players/:season_id
+
+Returns the player leaderboard filtered to a specific season.
+
+<ParamField path="season_id" type="integer" required>
+  The numeric season ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/leaderboard/players/3
+```

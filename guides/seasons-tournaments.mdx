@@ -1,0 +1,200 @@
+---
+title: Seasons & Tournaments
+description: Group matches into seasons, apply default CVARs, and view per-season stats.
+---
+
+Seasons in G5API are named date ranges that group related matches together. Each season can carry default CVARs that are applied to every match in the season, and seasons can optionally be backed by a Challonge tournament bracket.
+
+## What a Season Contains
+
+- A **name** and **start date** (required).
+- An optional **end date** — used to determine whether a season is still active.
+- Optional **CVARs** — key-value pairs sent to the game server as part of the match config.
+- A link to a **Challonge tournament** (when created via `POST /seasons/challonge`).
+
+## Creating a Season
+
+Requires authentication.
+
+```bash
+curl -X POST https://your-g5api.example.com/seasons \
+  -H "user-api: 42:ABCDEF..." \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "name": "Spring 2026 League",
+    "start_date": "2026-03-01T00:00:00Z",
+    "end_date": "2026-06-30T23:59:59Z",
+    "season_cvar": {
+      "sv_cheats": "0",
+      "mp_overtime_enable": "1"
+    }
+  }]'
+```
+
+**Response:**
+
+```json
+{
+  "message": "Season inserted successfully!",
+  "id": 5
+}
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Display name for the season. |
+| `start_date` | datetime | The date the season begins. |
+
+### Optional Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `end_date` | datetime | When the season ends. If `null`, the season is considered open-ended. |
+| `season_cvar` | object | Key-value pairs of ConVar names and values. Applied to every match in the season. |
+
+## Season CVARs
+
+CVARs defined on a season are stored in the `season_cvar` table and are merged into the match config's `cvars` object when the get5 plugin fetches `GET /matches/:id/config`. This lets you enforce consistent server settings across all matches in a league without configuring each match individually.
+
+Retrieve the CVARs for a season:
+
+```bash
+GET /seasons/:season_id/cvar
+```
+
+**Response:**
+
+```json
+{
+  "cvars": {
+    "sv_cheats": "0",
+    "mp_overtime_enable": "1"
+  }
+}
+```
+
+<Note>
+  Season CVARs are merged with any per-match CVARs (`match_cvars`) at config time. If both define the same key, the per-match value takes precedence because it is inserted after the season CVARs.
+</Note>
+
+## Assigning a Match to a Season
+
+Pass `season_id` when creating or updating a match:
+
+```bash
+curl -X POST https://your-g5api.example.com/matches \
+  -H "user-api: 42:ABCDEF..." \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "team1_id": 1,
+    "team2_id": 2,
+    "server_id": 3,
+    "max_maps": 1,
+    "title": "Week 3 Match",
+    "skip_veto": true,
+    "season_id": 5
+  }]'
+```
+
+The `season_id` is stored on the match record and is used to:
+- Include season CVARs in the match config.
+- Trigger a Challonge bracket update when the series ends (if the season is linked to Challonge).
+
+## Viewing Season Stats
+
+Fetch all matches and season metadata for a given season:
+
+```bash
+GET /seasons/:season_id
+```
+
+**Response:**
+
+```json
+{
+  "season": {
+    "id": 5,
+    "user_id": 42,
+    "name": "Spring 2026 League",
+    "start_date": "2026-03-01T00:00:00.000Z",
+    "end_date": "2026-06-30T23:59:59.000Z"
+  },
+  "matches": [
+    {
+      "id": 101,
+      "team1_id": 1,
+      "team2_id": 2,
+      "winner": 1,
+      "team1_score": 1,
+      "team2_score": 0,
+      "cancelled": 0
+    }
+  ]
+}
+```
+
+## Listing Seasons
+
+<Tabs>
+  <Tab title="All seasons">
+
+    ```bash
+    GET /seasons
+    ```
+
+    Returns all seasons with their CVARs included as a parsed object.
+
+  </Tab>
+  <Tab title="My seasons">
+
+    ```bash
+    GET /seasons/myseasons
+    ```
+
+    Returns only seasons owned by the authenticated user.
+
+  </Tab>
+  <Tab title="Available seasons">
+
+    ```bash
+    GET /seasons/myseasons/available
+    ```
+
+    Returns seasons where `end_date >= today OR end_date IS NULL`. Super admins see all active seasons regardless of owner.
+
+  </Tab>
+</Tabs>
+
+## Updating a Season
+
+```bash
+curl -X PUT https://your-g5api.example.com/seasons \
+  -H "user-api: 42:ABCDEF..." \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "season_id": 5,
+    "end_date": "2026-05-31T23:59:59Z",
+    "season_cvar": {
+      "mp_overtime_enable": "0"
+    }
+  }]'
+```
+
+<Warning>
+  When you update a season's CVARs, the existing `season_cvar` rows for that season are **deleted and replaced** in full. Partial updates to CVARs are not supported — always send the complete desired set.
+</Warning>
+
+## Deleting a Season
+
+```bash
+curl -X DELETE https://your-g5api.example.com/seasons \
+  -H "user-api: 42:ABCDEF..." \
+  -H "Content-Type: application/json" \
+  -d '[{"season_id": 5}]'
+```
+
+Deleting a season does not delete the matches linked to it. The `season_id` field on those matches is set to `NULL` by the database foreign key constraint.
+
+Only the season owner or a super admin can delete a season.

@@ -1,0 +1,97 @@
+---
+title: "Demo Upload"
+description: "POST /v2/demo — receive and store compressed demo files uploaded by the game server after a map ends."
+---
+
+After a map concludes, the game server plugin uploads the recorded `.dem` file as raw binary to `POST /v2/demo`. G5API compresses it into a ZIP archive and stores it under `public/demos/`, then updates the corresponding `map_stats.demoFile` column with the filename.
+
+<Note>
+  Demo uploads must be enabled in the G5API server configuration via `server.uploadDemos = true`. When disabled, all upload requests return `403`.
+</Note>
+
+## POST /v2/demo
+
+Upload a demo file for a completed map.
+
+**Headers**
+
+<ParamField header="Authorization" type="string" required>
+  The match API key.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/octet-stream`.
+</ParamField>
+
+<ParamField header="Get5-MatchId" type="string" required>
+  The match ID this demo belongs to.
+</ParamField>
+
+<ParamField header="Get5-MapNumber" type="string" required>
+  Zero-indexed map number in the series.
+</ParamField>
+
+<ParamField header="Get5-FileName" type="string" required>
+  The filename as defined by the `get5_demo_name_format` convar on the game server (e.g. `get5_demo_match42_map0_de_dust2.dem`). The `.dem` extension is replaced with `.zip` when stored.
+</ParamField>
+
+**Request body:** Raw binary content of the `.dem` file.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2/demo \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/octet-stream" \
+  -H "Get5-MatchId: 42" \
+  -H "Get5-MapNumber: 0" \
+  -H "Get5-FileName: get5_demo_match42_map0_de_dust2.dem" \
+  --data-binary @get5_demo_match42_map0_de_dust2.dem
+```
+
+**Response `200`**
+
+```json
+{ "message": "Success" }
+```
+
+**Response `401`** — Missing headers, invalid API key, or upload window expired.
+
+**Response `403`** — Demo uploads are disabled (`server.uploadDemos = false`).
+
+**Response `404`** — No `map_stats` record found for the given match ID and map number.
+
+## Upload window
+
+<Warning>
+  Demos must be uploaded within **8 minutes** of the map ending (`map_stats.end_time`). Uploads attempted after this window return `401` with message `"Demo can no longer be uploaded."`
+</Warning>
+
+## Storage
+
+Uploaded demos are stored at:
+
+```
+public/demos/<Get5-FileName>.zip
+```
+
+The path is relative to the G5API working directory. The `map_stats.demoFile` column is updated with the filename (without the leading path) so front-end clients can construct a download URL.
+
+## Accessing Stored Demos
+
+Stored demos are accessible as static files served from the `public/` directory. If G5API is hosted at `https://your-g5api.example.com`, a demo can be downloaded at:
+
+```
+https://your-g5api.example.com/demos/get5_demo_match42_map0_de_dust2.zip
+```
+
+The `demoFile` field in the [Map Stats](/api-reference/stats/mapstats) response contains the filename for each map.
+
+## Plugin Configuration
+
+Set the following convar on the game server to enable automatic demo upload:
+
+```
+// MatchZy
+matchzy_demo_upload_url "https://your-g5api.example.com/v2/demo"
+```
+
+G5API also sets the `Get5-MatchId`, `Get5-MapNumber`, and `Authorization` header values automatically when it arms the match via RCON.

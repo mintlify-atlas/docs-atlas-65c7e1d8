@@ -1,0 +1,110 @@
+---
+title: 'Get team'
+description: 'Retrieve a single team by ID, including its full roster with Steam IDs, names, and profile images.'
+---
+
+`GET /teams/:team_id`
+
+Returns detailed information about a single team, including the full `auth_name` roster with Steam profile images fetched from Steam. Use the `/teams/:team_id/basic` variant if you only need top-level team info without player data.
+
+<Note>
+  This endpoint is public and does not require authentication.
+</Note>
+
+## Path parameters
+
+<ParamField path="team_id" type="integer" required>
+  The unique ID of the team to retrieve.
+</ParamField>
+
+## Response
+
+<ResponseField name="team" type="object">
+  The team object.
+  <Expandable title="properties" defaultOpen={true}>
+    <ResponseField name="id" type="integer">
+      Unique identifier for the team.
+    </ResponseField>
+    <ResponseField name="user_id" type="integer">
+      ID of the user who owns the team.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Display name of the team.
+    </ResponseField>
+    <ResponseField name="flag" type="string">
+      Two-letter country code for the in-game flag.
+    </ResponseField>
+    <ResponseField name="logo" type="string">
+      Stored logo filename (without extension).
+    </ResponseField>
+    <ResponseField name="tag" type="string">
+      Short team tag or abbreviation.
+    </ResponseField>
+    <ResponseField name="public_team" type="integer">
+      `1` if the team is public, `0` if private.
+    </ResponseField>
+    <ResponseField name="auth_name" type="object">
+      Map of Steam IDs to player auth objects. Each value includes `name`, `captain`, `coach`, and `image`.
+      <Expandable title="auth object properties">
+        <ResponseField name="name" type="string">
+          Player display name.
+        </ResponseField>
+        <ResponseField name="captain" type="integer">
+          `1` if the player is team captain, otherwise `0`.
+        </ResponseField>
+        <ResponseField name="coach" type="integer">
+          `1` if the player is team coach, otherwise `0`.
+        </ResponseField>
+        <ResponseField name="image" type="string">
+          URL of the player's Steam avatar image.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request GET \
+  --url https://your-g5api-host.com/teams/12
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "team": {
+    "id": 12,
+    "user_id": 3,
+    "name": "Natus Vincere",
+    "flag": "UA",
+    "logo": "ab3f2",
+    "tag": "NaVi",
+    "public_team": 1,
+    "auth_name": {
+      "76561198012345678": {
+        "name": "s1mple",
+        "captain": 1,
+        "coach": 0,
+        "image": "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars/ab/ab3f.jpg"
+      },
+      "76561198087654321": {
+        "name": "b1t",
+        "captain": 0,
+        "coach": 0,
+        "image": "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars/cd/cd4e.jpg"
+      }
+    }
+  }
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `404`  | No team found for the given ID. |
+| `500`  | Internal server error. |

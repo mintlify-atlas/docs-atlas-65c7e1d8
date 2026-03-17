@@ -1,0 +1,103 @@
+---
+title: 'Update user'
+description: 'Update a user profile, API key, password, or admin status.'
+---
+
+```
+PUT /users
+```
+
+Updates a user record. You must be authenticated. You can update your own profile; admins and super admins can update any profile and change admin flags.
+
+<Warning>
+  Changing `admin` and `super_admin` requires admin-level access. Regular users cannot elevate their own privileges.
+</Warning>
+
+## Authentication
+
+This endpoint requires an active session or a valid Bearer token.
+
+## Request body
+
+The body must be a JSON **array** containing a single user object (as defined by the Swagger schema).
+
+<ParamField body="id" type="integer">
+  The database ID of the user to update. Required if `steam_id` is not provided.
+</ParamField>
+
+<ParamField body="steam_id" type="string">
+  The Steam64 ID of the user to update. Required if `id` is not provided.
+</ParamField>
+
+<ParamField body="name" type="string">
+  New display name for the user. Admins only.
+</ParamField>
+
+<ParamField body="new_api" type="integer">
+  Set to `1` to generate and store a new API key. The rotated key is returned on your next profile fetch.
+</ParamField>
+
+<ParamField body="password" type="string">
+  New password to set. Only applies to local-login accounts. Must be accompanied by `old_password` unless you are an admin.
+</ParamField>
+
+<ParamField body="old_password" type="string">
+  Current password. Required when a non-admin user sets a new `password`.
+</ParamField>
+
+<ParamField body="force_reset" type="boolean">
+  When `true`, clears the stored password (sets it to `NULL`). Only works on your own account.
+</ParamField>
+
+<ParamField body="admin" type="integer">
+  Set to `1` to grant admin privileges, `0` to revoke. Requires admin access.
+</ParamField>
+
+<ParamField body="super_admin" type="integer">
+  Set to `1` to grant super admin privileges, `0` to revoke. Requires admin access.
+</ParamField>
+
+<ParamField body="challonge_api_key" type="string">
+  Your [Challonge API key](https://challonge.com/settings/developer). Stored encrypted.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Rotate API key
+curl -X PUT http://your-server:3301/users \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '[{"id": 42, "steam_id": "76561198000000000", "new_api": 1}]'
+```
+
+```bash Change password
+curl -X PUT http://your-server:3301/users \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '[{"id": 42, "steam_id": "76561198000000000", "old_password": "current", "password": "newpassword"}]'
+```
+
+```bash Grant admin (admin only)
+curl -X PUT http://your-server:3301/users \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '[{"id": 7, "steam_id": "76561198000000007", "admin": 1}]'
+```
+
+</CodeGroup>
+
+## Response
+
+```json
+{ "message": "User successfully updated!" }
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `403` | Not authorized, or old password does not match. |
+| `412` | No update data was provided. |
+| `500` | Database or server error. |

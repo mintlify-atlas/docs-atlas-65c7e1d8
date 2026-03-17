@@ -1,0 +1,112 @@
+---
+title: "Get Season"
+description: "Retrieve a single season and all matches associated with it."
+---
+
+## Overview
+
+Returns the season record and all matches linked to it. This endpoint is publicly accessible — no authentication required.
+
+## Endpoint
+
+```
+GET /seasons/:season_id
+```
+
+## Path Parameters
+
+<ParamField path="season_id" type="integer" required>
+  The unique ID of the season to retrieve.
+</ParamField>
+
+## Response
+
+<ResponseField name="season" type="object">
+  The season record.
+
+  <Expandable title="Season fields">
+    <ResponseField name="id" type="integer">
+      Season ID.
+    </ResponseField>
+    <ResponseField name="user_id" type="integer">
+      ID of the user who owns the season.
+    </ResponseField>
+    <ResponseField name="server_id" type="integer">
+      Default server ID for this season.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Season name.
+    </ResponseField>
+    <ResponseField name="start_date" type="string">
+      ISO 8601 start date.
+    </ResponseField>
+    <ResponseField name="end_date" type="string">
+      ISO 8601 end date. `null` if open-ended.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="matches" type="array">
+  All matches associated with this season. Each element follows the same shape as the [List Matches](/api-reference/matches/list) response.
+
+  <Expandable title="Match fields">
+    <ResponseField name="id" type="integer">Match ID.</ResponseField>
+    <ResponseField name="team1_id" type="integer">Team 1 ID.</ResponseField>
+    <ResponseField name="team2_id" type="integer">Team 2 ID.</ResponseField>
+    <ResponseField name="winner" type="integer">Winning team ID, or `null`.</ResponseField>
+    <ResponseField name="team1_score" type="integer">Series maps won by team 1.</ResponseField>
+    <ResponseField name="team2_score" type="integer">Series maps won by team 2.</ResponseField>
+    <ResponseField name="cancelled" type="boolean">Whether the match was cancelled.</ResponseField>
+    <ResponseField name="forfeit" type="boolean">Whether the match was forfeited.</ResponseField>
+    <ResponseField name="start_time" type="string">ISO 8601 start datetime.</ResponseField>
+    <ResponseField name="end_time" type="string">ISO 8601 end datetime.</ResponseField>
+    <ResponseField name="max_maps" type="integer">Maximum maps in the series.</ResponseField>
+    <ResponseField name="title" type="string">Match title.</ResponseField>
+    <ResponseField name="skip_veto" type="boolean">Whether veto was skipped.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```bash
+curl https://your-g5api.example.com/seasons/2
+```
+
+### Response
+
+```json
+{
+  "season": {
+    "id": 2,
+    "user_id": 1,
+    "server_id": 3,
+    "name": "Spring 2026 League",
+    "start_date": "2026-03-01T00:00:00.000Z",
+    "end_date": "2026-06-30T00:00:00.000Z"
+  },
+  "matches": [
+    {
+      "id": 42,
+      "team1_id": 10,
+      "team2_id": 11,
+      "winner": 10,
+      "team1_score": 2,
+      "team2_score": 1,
+      "cancelled": false,
+      "forfeit": false,
+      "start_time": "2026-03-17T18:00:00.000Z",
+      "end_time": "2026-03-17T21:30:00.000Z",
+      "max_maps": 3,
+      "title": "Map {MAPNUMBER} of {MAXMAPS}",
+      "skip_veto": false
+    }
+  ]
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `404`  | Season not found with the given ID. |
+| `500`  | Internal server error. |

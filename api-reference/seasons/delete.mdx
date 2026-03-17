@@ -1,0 +1,58 @@
+---
+title: "Delete Season"
+description: "Delete a season. Associated matches have their season link cleared."
+---
+
+## Overview
+
+Deletes the specified season. Any matches linked to this season have their `season_id` set to `NULL` — matches themselves are not deleted. You must own the season or be a super-admin.
+
+<Warning>
+  This action is irreversible. The season record and all associated CVAR data are permanently removed.
+</Warning>
+
+## Endpoint
+
+```
+DELETE /seasons
+```
+
+## Request Body
+
+Send a JSON array containing one object with `season_id`.
+
+<ParamField body="season_id" type="integer" required>
+  The ID of the season to delete.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Season deleted successfully!"`
+</ResponseField>
+
+## Example
+
+```bash
+curl -X DELETE https://your-g5api.example.com/seasons \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{ "season_id": 2 }]'
+```
+
+### Response
+
+```json
+{
+  "message": "Season deleted successfully!"
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | No `season_id` provided in the request body. |
+| `403`  | You do not own this season. |
+| `404`  | Season not found. |
+| `500`  | Internal server error. |

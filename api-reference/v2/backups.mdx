@@ -1,0 +1,99 @@
+---
+title: "Round Backups"
+description: "POST /v2/backup — receive and store round backup files uploaded by the game server during a live match."
+---
+
+Round backups allow a match to be restored to a specific round if something goes wrong (server crash, player disconnect, etc.). During a live map, the game server plugin uploads a backup `.cfg` file after each round. G5API stores these files under `public/backups/<match_id>/` and makes them available for download.
+
+## POST /v2/backup
+
+Upload a round backup file.
+
+**Headers**
+
+<ParamField header="Authorization" type="string" required>
+  The match API key.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/octet-stream`.
+</ParamField>
+
+<ParamField header="Get5-MatchId" type="string" required>
+  The match ID this backup belongs to.
+</ParamField>
+
+<ParamField header="Get5-MapNumber" type="string" required>
+  Zero-indexed map number in the series.
+</ParamField>
+
+<ParamField header="Get5-RoundNumber" type="string" required>
+  Zero-indexed round number. The plugin sends `-1` if the match is not live at the time of upload.
+</ParamField>
+
+**Request body:** Raw binary content of the backup `.cfg` file.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2/backup \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/octet-stream" \
+  -H "Get5-MatchId: 42" \
+  -H "Get5-MapNumber: 0" \
+  -H "Get5-RoundNumber: 14" \
+  --data-binary @get5_backup_match42_map0_round14.cfg
+```
+
+**Response `200`**
+
+```json
+{ "message": "Success" }
+```
+
+**Response `401`** — Missing required headers, invalid or expired API key.
+
+## Storage
+
+Backup files are written to:
+
+```
+public/backups/<match_id>/get5_backup_match<match_id>_map<map_number>_round<round_number>.cfg
+```
+
+The directory `public/backups/<match_id>/` is created automatically if it does not exist.
+
+**Example path for match 42, map 0, round 14:**
+
+```
+public/backups/42/get5_backup_match42_map0_round14.cfg
+```
+
+## Accessing Backups
+
+Backup files are accessible as static files. If G5API is hosted at `https://your-g5api.example.com`, a specific backup can be downloaded at:
+
+```
+https://your-g5api.example.com/backups/42/get5_backup_match42_map0_round14.cfg
+```
+
+## Restoring a Backup
+
+To restore a match to a previous round, load the backup file on the game server via RCON:
+
+```
+get5_loadbackup get5_backup_match42_map0_round14.cfg
+```
+
+When the backup is loaded, the plugin fires the `backup_loaded` event back to `POST /v2`, which causes G5API to roll back the map scores in `map_stats` to the state at that round.
+
+<Warning>
+  Restoring a backup does **not** automatically delete player stat rows created after the restored round. Manual cleanup may be needed for historical accuracy.
+</Warning>
+
+## Plugin Configuration
+
+Set the following convar to enable automatic backup upload:
+
+```
+// MatchZy
+matchzy_backup_upload_url "https://your-g5api.example.com/v2/backup"
+```

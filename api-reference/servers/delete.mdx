@@ -1,0 +1,60 @@
+---
+title: 'Delete server'
+description: 'Remove a game server registration from the system.'
+---
+
+`DELETE /servers`
+
+Deletes a registered game server. Only the server owner or a super admin can delete a server. Deletion is blocked if the server is currently in use by an active match — cancel the match first.
+
+<Warning>
+  Authentication is required. Only the server owner or a super admin can delete a server.
+</Warning>
+
+<Warning>
+  A server cannot be deleted while it is actively hosting a match. Cancel the match before deleting the server.
+</Warning>
+
+## Request body
+
+The request body must be a JSON array with a single object at index `0`.
+
+<ParamField body="server_id" type="integer" required>
+  The ID of the server to delete.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"Game server deleted successfully!"`
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request DELETE \
+  --url https://your-g5api-host.com/servers \
+  --header 'Content-Type: application/json' \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE' \
+  --data '[{ "server_id": 5 }]'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "message": "Game server deleted successfully!"
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `400`  | Bad request — missing or malformed fields. |
+| `403`  | User is not the server owner or a super admin, or the server is currently in use. |
+| `404`  | Server does not exist. |
+| `500`  | Internal server error. |

@@ -1,0 +1,231 @@
+---
+title: "Database configuration"
+description: "Configure G5API's MySQL/MariaDB connection, connection pool, migration commands, and MYSQL_FLAGS."
+---
+
+G5API uses MySQL or MariaDB as its only supported database backend. The database connection is configured under the `development`, `production`, or `test` key in your config file — whichever matches `NODE_ENV`.
+
+## Connection settings
+
+<ParamField body="driver" type="string" required>
+  Always `"mysql"`. G5API uses [db-migrate-mysql](https://github.com/db-migrate/mysql) and [mysql2](https://github.com/sidorares/node-mysql2) under the hood.
+</ParamField>
+
+<ParamField body="host" type="string" required>
+  Hostname or IP address of the MySQL/MariaDB server. Use `"127.0.0.1"` for local instances. In Docker Compose, use the service name (e.g., `"get5db"`).
+</ParamField>
+
+<ParamField body="port" type="number" required>
+  Port number for the database server. The MySQL default is `3306`.
+</ParamField>
+
+<ParamField body="user" type="string" required>
+  Database username. The development template uses `"get5_user"`. The Docker Compose example uses `"get5"`.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  Password for the database user. Leave empty (`""`) for passwordless local development.
+</ParamField>
+
+<ParamField body="database" type="string" required>
+  Name of the database. Must match the name created by the migration commands:
+  - Development: `get5dev`
+  - Production: `get5`
+  - Test: `get5test`
+</ParamField>
+
+<ParamField body="connectionLimit" type="number" default="15">
+  Maximum number of connections in the pool. All three environment templates default to `15`. Increase this value for high-traffic deployments. Most CS2 match workloads are well within the default.
+</ParamField>
+
+<ParamField body="multipleStatements" type="boolean" default="true">
+  Allow multiple SQL statements in a single query. G5API's migration files require this to be `true`. Do not change it.
+</ParamField>
+
+<ParamField body="flags" type="object">
+  Passes additional MySQL connection flags. The value `{ "ENV": "MYSQL_FLAGS" }` tells db-migrate to read the `MYSQL_FLAGS` environment variable at migration time. See [MYSQL_FLAGS](#mysql_flags) below.
+</ParamField>
+
+## Config examples
+
+<CodeGroup>
+
+```json development.json
+{
+  "development": {
+    "driver": "mysql",
+    "user": "get5_user",
+    "password": "",
+    "database": "get5dev",
+    "multipleStatements": true,
+    "flags": { "ENV": "MYSQL_FLAGS" },
+    "host": "127.0.0.1",
+    "port": 3306,
+    "connectionLimit": 15
+  }
+}
+```
+
+```json production.json
+{
+  "production": {
+    "driver": "mysql",
+    "user": "get5",
+    "password": "your_db_password",
+    "database": "get5",
+    "multipleStatements": true,
+    "flags": { "ENV": "MYSQL_FLAGS" },
+    "host": "get5db",
+    "port": 3306,
+    "connectionLimit": 15
+  }
+}
+```
+
+</CodeGroup>
+
+## Migration commands
+
+G5API ships with a set of `yarn` scripts that wrap `db-migrate`. Run these in order when setting up a new environment.
+
+### Create the database
+
+`MYSQL_FLAGS="-CONNECT_WITH_DB"` is required here because the database does not exist yet — the flag tells the MySQL client to connect without specifying a database name.
+
+<Tabs>
+  <Tab title="Development">
+    ```bash
+    MYSQL_FLAGS="-CONNECT_WITH_DB" yarn migrate-create-dev
+    ```
+  </Tab>
+  <Tab title="Production">
+    ```bash
+    MYSQL_FLAGS="-CONNECT_WITH_DB" yarn migrate-create-prod
+    ```
+  </Tab>
+  <Tab title="Test">
+    ```bash
+    MYSQL_FLAGS="-CONNECT_WITH_DB" yarn migrate-create-test
+    ```
+  </Tab>
+</Tabs>
+
+### Run migrations (upgrade)
+
+Applies all pending migration scripts to bring the schema up to date.
+
+<Tabs>
+  <Tab title="Development">
+    ```bash
+    yarn migrate-dev-upgrade
+    ```
+  </Tab>
+  <Tab title="Production">
+    ```bash
+    yarn migrate-prod-upgrade
+    ```
+  </Tab>
+  <Tab title="Test">
+    ```bash
+    yarn migrate-test-upgrade
+    ```
+  </Tab>
+</Tabs>
+
+### Roll back migrations (downgrade)
+
+Reverts the most recent migration.
+
+<Tabs>
+  <Tab title="Development">
+    ```bash
+    yarn migrate-dev-downgrade
+    ```
+  </Tab>
+  <Tab title="Production">
+    ```bash
+    yarn migrate-prod-downgrade
+    ```
+  </Tab>
+  <Tab title="Test">
+    ```bash
+    yarn migrate-test-downgrade
+    ```
+  </Tab>
+</Tabs>
+
+### Drop the database
+
+<Warning>
+This is destructive and irreversible. All data will be lost.
+</Warning>
+
+<Tabs>
+  <Tab title="Development">
+    ```bash
+    MYSQL_FLAGS="-CONNECT_WITH_DB" yarn migrate-drop-dev
+    ```
+  </Tab>
+  <Tab title="Production">
+    ```bash
+    MYSQL_FLAGS="-CONNECT_WITH_DB" yarn migrate-drop-prod
+    ```
+  </Tab>
+  <Tab title="Test">
+    ```bash
+    MYSQL_FLAGS="-CONNECT_WITH_DB" yarn migrate-drop-test
+    ```
+  </Tab>
+</Tabs>
+
+### One-shot production setup
+
+The `prod` script combines database creation and upgrade in a single command:
+
+```bash
+NODE_ENV=production yarn prod
+```
+
+This is equivalent to running `migrate-create-prod` followed by `migrate-prod-upgrade`.
+
+## MYSQL_FLAGS
+
+The `MYSQL_FLAGS` environment variable passes raw connection flags to the MySQL client during migrations. The most common value is `-CONNECT_WITH_DB`.
+
+| Flag | Purpose |
+|------|---------|
+| `-CONNECT_WITH_DB` | Connect without selecting an initial database. Required when the target database does not yet exist (i.e., during `db:create`). |
+
+The config file references this variable via:
+
+```json
+"flags": { "ENV": "MYSQL_FLAGS" }
+```
+
+When running normal application migrations (not `db:create`), you do not need to set `MYSQL_FLAGS` — the database already exists at that point.
+
+## Docker Compose database service
+
+The provided `docker-compose.yml` runs MariaDB with charset `utf8mb4`:
+
+```yaml
+get5db:
+  image: yobasystems/alpine-mariadb
+  environment:
+    - MYSQL_ROOT_PASSWORD=
+    - MYSQL_DATABASE=get5
+    - MYSQL_USER=get5
+    - MYSQL_PASSWORD=
+    - MYSQL_CHARSET=utf8mb4
+    - MYSQL_COLLATION=utf8mb4_general_ci
+```
+
+<Note>
+Set `MYSQL_ROOT_PASSWORD` and `MYSQL_PASSWORD` to non-empty values in production. Leaving them blank exposes your database without credentials.
+</Note>
+
+## Connection pool sizing
+
+The default `connectionLimit` of `15` is sufficient for most single-server deployments. Consider increasing it if you observe `wait_timeout` or `too many connections` errors under load.
+
+Keep the pool size below your MySQL server's `max_connections` limit (default `151` on most distributions). A safe starting point for higher-traffic deployments is `30–50` connections per G5API instance.

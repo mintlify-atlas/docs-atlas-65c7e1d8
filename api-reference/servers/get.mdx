@@ -1,0 +1,103 @@
+---
+title: 'Get server'
+description: 'Retrieve details for a specific game server by ID.'
+---
+
+`GET /servers/:server_id`
+
+Returns detailed information for a single game server. The response includes full connection details (IP, port, RCON password) for the server owner and super admins. Other authenticated users receive only the IP and port for public servers they do not own.
+
+<Warning>
+  Authentication is required. Only the server owner and super admins receive the full record including RCON password.
+</Warning>
+
+## Path parameters
+
+<ParamField path="server_id" type="integer" required>
+  The unique ID of the server to retrieve.
+</ParamField>
+
+## Response
+
+<ResponseField name="server" type="object">
+  The server object. Fields vary based on caller's access level.
+  <Expandable title="properties" defaultOpen={true}>
+    <ResponseField name="id" type="integer">
+      Unique server identifier.
+    </ResponseField>
+    <ResponseField name="in_use" type="integer">
+      `1` if the server is currently hosting a match, `0` otherwise.
+    </ResponseField>
+    <ResponseField name="display_name" type="string">
+      Human-readable server label.
+    </ResponseField>
+    <ResponseField name="ip_string" type="string">
+      IP address or hostname.
+    </ResponseField>
+    <ResponseField name="port" type="integer">
+      Game server port.
+    </ResponseField>
+    <ResponseField name="rcon_password" type="string">
+      Decrypted RCON password. Only included for the server owner and super admins.
+    </ResponseField>
+    <ResponseField name="public_server" type="integer">
+      `1` if public, `0` if private.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Username of the server owner.
+    </ResponseField>
+    <ResponseField name="flag" type="string">
+      Two-letter country code for the server region.
+    </ResponseField>
+    <ResponseField name="gotv_port" type="integer">
+      GOTV spectator port, if configured.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request GET \
+  --url https://your-g5api-host.com/servers/5 \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE'
+```
+
+</CodeGroup>
+
+```json Response (owner or super admin)
+{
+  "server": {
+    "id": 5,
+    "in_use": 0,
+    "display_name": "EU Match Server 1",
+    "ip_string": "192.0.2.10",
+    "port": 27015,
+    "rcon_password": "supersecret",
+    "public_server": 1,
+    "name": "adminuser",
+    "flag": "DE",
+    "gotv_port": 27020
+  }
+}
+```
+
+```json Response (other authenticated user)
+{
+  "server": {
+    "ip_string": "192.0.2.10",
+    "port": 27015
+  }
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `403`  | User is not the server owner or a super admin. |
+| `404`  | Server not found. |
+| `500`  | Internal server error. |

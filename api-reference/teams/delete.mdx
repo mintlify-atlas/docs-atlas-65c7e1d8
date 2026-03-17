@@ -1,0 +1,85 @@
+---
+title: 'Delete team'
+description: 'Delete a team and its roster, or remove a single player from a team by Steam ID.'
+---
+
+`DELETE /teams`
+
+Deletes an entire team and all its associated roster entries, or removes a single player from the team when a `steam_id` is provided. The team logo file (PNG or SVG) is also deleted from disk when removing the full team.
+
+<Warning>
+  Authentication is required. Only the team owner or a super admin can delete a team.
+</Warning>
+
+<Note>
+  If the team has map stats associated with past matches, the underlying match data is preserved. Only the team record itself is removed.
+</Note>
+
+## Request body
+
+The request body must be a JSON array with a single object at index `0`.
+
+<ParamField body="team_id" type="integer" required>
+  The ID of the team to delete.
+</ParamField>
+
+<ParamField body="steam_id" type="string">
+  Steam ID of a specific player to remove from the team roster. When provided, only that player is deleted — the team itself is not removed.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Team has been deleted successfully!"` when deleting a full team, or `"Team member deleted successfully!"` when removing a single player.
+</ResponseField>
+
+## Examples
+
+### Delete a full team
+
+<CodeGroup>
+
+```bash cURL
+curl --request DELETE \
+  --url https://your-g5api-host.com/teams \
+  --header 'Content-Type: application/json' \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE' \
+  --data '[{ "team_id": 12 }]'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "message": "Team has been deleted successfully!"
+}
+```
+
+### Remove a single player
+
+<CodeGroup>
+
+```bash cURL
+curl --request DELETE \
+  --url https://your-g5api-host.com/teams \
+  --header 'Content-Type: application/json' \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE' \
+  --data '[{ "team_id": 12, "steam_id": "76561198012345678" }]'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "message": "Team member deleted successfully!"
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `403`  | User is not the team owner or a super admin. |
+| `404`  | Team does not exist. |
+| `500`  | Internal server error. |

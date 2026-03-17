@@ -1,0 +1,103 @@
+---
+title: "Create Season"
+description: "Create a new season and optionally set default server CVARs."
+---
+
+## Overview
+
+Creates a new season record. Optionally, you can specify `season_cvar` to attach default server console variables that are applied to any match associated with this season.
+
+<Note>
+  Authentication is required. The season is owned by the authenticated user.
+</Note>
+
+## Endpoint
+
+```
+POST /seasons
+```
+
+## Request Body
+
+Send a JSON array containing one season object.
+
+<ParamField body="name" type="string" required>
+  The display name of the season (e.g., `"Spring 2026 League"`).
+</ParamField>
+
+<ParamField body="server_id" type="integer" required>
+  The ID of the default game server associated with this season.
+</ParamField>
+
+<ParamField body="start_date" type="string" required>
+  Season start date in ISO 8601 format (e.g., `"2026-03-01T00:00:00Z"`).
+</ParamField>
+
+<ParamField body="end_date" type="string">
+  Season end date in ISO 8601 format. Leave `null` for an open-ended season.
+</ParamField>
+
+<ParamField body="season_cvar" type="object">
+  Key-value pairs of default server CVARs to apply when this season is selected for a match. Example: `{ "mp_overtime_enable": "1" }`.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Season inserted successfully!"`
+</ResponseField>
+
+<ResponseField name="id" type="integer">
+  The ID of the newly created season.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Basic season
+curl -X POST https://your-g5api.example.com/seasons \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "name": "Spring 2026 League",
+    "server_id": 3,
+    "start_date": "2026-03-01T00:00:00Z",
+    "end_date": "2026-06-30T00:00:00Z"
+  }]'
+```
+
+```bash Season with CVARs
+curl -X POST https://your-g5api.example.com/seasons \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "name": "Spring 2026 League",
+    "server_id": 3,
+    "start_date": "2026-03-01T00:00:00Z",
+    "end_date": "2026-06-30T00:00:00Z",
+    "season_cvar": {
+      "mp_overtime_enable": "1",
+      "mp_overtime_maxrounds": "6",
+      "sv_cheats": "0"
+    }
+  }]'
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "message": "Season inserted successfully!",
+  "id": 3
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | Bad request — missing required fields. |
+| `500`  | Internal server error. |

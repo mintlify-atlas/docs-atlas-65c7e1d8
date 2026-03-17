@@ -1,0 +1,186 @@
+---
+title: "Create Match"
+description: "Create a new CS2 match and optionally load it onto a game server."
+---
+
+## Overview
+
+Creates a new match record. If a `server_id` is provided and `ignore_server` is not set, G5API will attempt to connect to the game server via RCON, verify the get5 plugin is available, and automatically load the match configuration.
+
+<Note>
+  You must be authenticated to create a match. The match is owned by the authenticated user.
+</Note>
+
+<Warning>
+  If server-side match loading fails (e.g., the game server is unreachable or get5 is unavailable), the match record is deleted from the database and an error is returned. Check your server logs in that case.
+</Warning>
+
+## Endpoint
+
+```
+POST /matches
+```
+
+## Request Body
+
+Send a JSON array containing one match object.
+
+<ParamField body="team1_id" type="integer" required>
+  The ID of team one.
+</ParamField>
+
+<ParamField body="team2_id" type="integer" required>
+  The ID of team two.
+</ParamField>
+
+<ParamField body="max_maps" type="integer" required>
+  Number of maps in the series. Must be `1`, `2`, or `3`.
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Match title. Default placeholder format: `Map {MAPNUMBER} of {MAXMAPS}`.
+</ParamField>
+
+<ParamField body="skip_veto" type="boolean" required>
+  Whether to skip the map veto phase. If `true`, maps are played in the order listed in `veto_mappool`.
+</ParamField>
+
+<ParamField body="server_id" type="integer">
+  The ID of the game server to load the match on. Leave `null` to create a match without a server.
+</ParamField>
+
+<ParamField body="season_id" type="integer">
+  The season this match belongs to. `null` if no season.
+</ParamField>
+
+<ParamField body="start_time" type="string">
+  Scheduled start time in ISO 8601 format (e.g., `2026-03-17T18:00:00Z`).
+</ParamField>
+
+<ParamField body="veto_first" type="string">
+  Which team vetoes first. Either `"team1"` or `"team2"`.
+</ParamField>
+
+<ParamField body="veto_mappool" type="string">
+  Space-separated list of maps in the veto pool (e.g., `"de_dust2 de_mirage de_inferno"`).
+</ParamField>
+
+<ParamField body="side_type" type="string" default="standard">
+  How sides are determined. Options: `"standard"`, `"always_knife"`, `"never_knife"`.
+</ParamField>
+
+<ParamField body="spectator_auths" type="object">
+  Object of spectator Steam64 IDs. Each value is `"steamid64;nickname"` format.
+</ParamField>
+
+<ParamField body="private_match" type="boolean" default="false">
+  Restrict match visibility to team members and map stats participants.
+</ParamField>
+
+<ParamField body="enforce_teams" type="boolean" default="true">
+  Enforce team rosters when the match starts on the server.
+</ParamField>
+
+<ParamField body="ignore_server" type="boolean">
+  If `true`, skip the RCON server integration step entirely.
+</ParamField>
+
+<ParamField body="min_players_to_ready" type="integer">
+  Minimum players per team that must ready up before the match starts.
+</ParamField>
+
+<ParamField body="min_spectators_to_ready" type="integer">
+  Minimum spectators that must ready up before the match starts.
+</ParamField>
+
+<ParamField body="players_per_team" type="integer">
+  Number of players per team. Defaults to 5.
+</ParamField>
+
+<ParamField body="match_cvars" type="object">
+  Key-value pairs of server console variables to apply for this match (e.g., `{ "mp_overtime_enable": "1" }`).
+</ParamField>
+
+<ParamField body="is_pug" type="boolean">
+  Mark as a PUG match. Team roster requirements are relaxed and teams are cleaned up after the match.
+</ParamField>
+
+<ParamField body="wingman" type="boolean">
+  Set to `true` to use wingman (2v2) game mode.
+</ParamField>
+
+<ParamField body="map_sides" type="string">
+  Comma-separated starting sides per map (e.g., `"team1_ct,team2_ct"`). Only used when `skip_veto` is `true`.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"Match inserted successfully!"`
+</ResponseField>
+
+<ResponseField name="id" type="integer">
+  The newly created match ID.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Minimal match (no server)
+curl -X POST https://your-g5api.example.com/matches \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "team1_id": 10,
+    "team2_id": 11,
+    "max_maps": 1,
+    "title": "Map {MAPNUMBER} of {MAXMAPS}",
+    "skip_veto": true,
+    "veto_mappool": "de_dust2",
+    "ignore_server": true
+  }]'
+```
+
+```bash Full match with server
+curl -X POST https://your-g5api.example.com/matches \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "team1_id": 10,
+    "team2_id": 11,
+    "server_id": 3,
+    "max_maps": 3,
+    "title": "Map {MAPNUMBER} of {MAXMAPS}",
+    "skip_veto": false,
+    "veto_first": "team1",
+    "veto_mappool": "de_dust2 de_mirage de_inferno de_nuke de_overpass de_anubis de_ancient",
+    "side_type": "standard",
+    "season_id": 2,
+    "min_players_to_ready": 5,
+    "enforce_teams": true,
+    "match_cvars": {
+      "mp_overtime_enable": "1",
+      "mp_overtime_maxrounds": "6"
+    }
+  }]'
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "message": "Match inserted successfully!",
+  "id": 43
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Server is already in use by another match. |
+| `403`  | You do not own the specified server. |
+| `500`  | Internal server error, or game server failed to load the match config. |

@@ -1,0 +1,58 @@
+---
+title: 'Delete user'
+description: 'Delete a user account from G5API.'
+---
+
+<Note>
+  The G5API source does not expose a `DELETE /users/:user_id` HTTP endpoint in the current codebase. User removal is handled administratively through direct database access or by a super admin via the admin panel.
+</Note>
+
+```
+DELETE /users/:user_id
+```
+
+Removes a user account. Only the account owner or a super admin can delete a user.
+
+<Warning>
+  This action is irreversible. All data associated with the user — including their API key, Challonge integration, and match history ownership — will be removed.
+</Warning>
+
+## Authentication
+
+You must be authenticated as the user being deleted, or as a super admin.
+
+## Path parameters
+
+<ParamField path="user_id" type="string" required>
+  The numeric database ID or Steam64 ID of the user to delete.
+</ParamField>
+
+## Request
+
+<CodeGroup>
+
+```bash Delete own account
+curl -X DELETE http://your-server:3301/users/42 \
+  -b cookies.txt
+```
+
+```bash Delete as super admin (Bearer token)
+curl -X DELETE http://your-server:3301/users/7 \
+  -H "Authorization: Bearer 1:ABCDEF1234567890..."
+```
+
+</CodeGroup>
+
+## Response
+
+```json
+{ "message": "User deleted successfully." }
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `403` | Authenticated but not authorized to delete this account. |
+| `404` | No user found with the given ID. |
+| `500` | Database or server error. |

@@ -1,0 +1,170 @@
+---
+title: "Update Match"
+description: "Update match details, server assignment, scores, or CVARs."
+---
+
+## Overview
+
+Updates an existing match. You must own the match or be a super-admin. The update can change server assignment, match metadata, scores, and additional CVARs.
+
+If `forfeit`, `cancelled`, or `end_time` is set in the update, the game server is instructed to end the match and the server is marked as available. If a different `server_id` is specified, G5API migrates the match to the new server.
+
+<Note>
+  Only fields included in the request body are updated. Omitted fields are left unchanged.
+</Note>
+
+<Warning>
+  Setting `end_time`, `forfeit: 1`, or `cancelled: 1` triggers server cleanup. For PUG matches, team records are also deleted after the match ends.
+</Warning>
+
+## Endpoint
+
+```
+PUT /matches
+```
+
+## Request Body
+
+Send a JSON array containing one update object. `match_id` is required.
+
+<ParamField body="match_id" type="integer" required>
+  The ID of the match to update.
+</ParamField>
+
+<ParamField body="server_id" type="integer">
+  Reassign the match to a different game server. The previous server is released if the match is migrated.
+</ParamField>
+
+<ParamField body="season_id" type="integer">
+  Link or change the season this match belongs to.
+</ParamField>
+
+<ParamField body="start_time" type="string">
+  Updated start time in ISO 8601 format.
+</ParamField>
+
+<ParamField body="end_time" type="string">
+  Mark the match as ended by setting an end time. Also triggers server cleanup.
+</ParamField>
+
+<ParamField body="winner" type="integer">
+  Set the winning team ID.
+</ParamField>
+
+<ParamField body="forfeit" type="integer">
+  Set to `1` to mark the match as forfeited.
+</ParamField>
+
+<ParamField body="cancelled" type="integer">
+  Set to `1` to mark the match as cancelled.
+</ParamField>
+
+<ParamField body="team1_score" type="integer">
+  Update the series score for team 1.
+</ParamField>
+
+<ParamField body="team2_score" type="integer">
+  Update the series score for team 2.
+</ParamField>
+
+<ParamField body="private_match" type="boolean">
+  Toggle restricted visibility for this match.
+</ParamField>
+
+<ParamField body="veto_first" type="string">
+  Update who vetoes first: `"team1"` or `"team2"`.
+</ParamField>
+
+<ParamField body="veto_mappool" type="string">
+  Update the space-separated map pool string.
+</ParamField>
+
+<ParamField body="side_type" type="string">
+  Update the side selection method: `"standard"`, `"always_knife"`, or `"never_knife"`.
+</ParamField>
+
+<ParamField body="enforce_teams" type="boolean">
+  Enable or disable team roster enforcement. Ignored for PUG matches.
+</ParamField>
+
+<ParamField body="spectator_auths" type="object">
+  Add additional spectator Steam64 IDs. Each value is `"steamid64;nickname"` format.
+</ParamField>
+
+<ParamField body="match_cvars" type="object">
+  Additional server CVARs to insert for this match.
+</ParamField>
+
+<ParamField body="ignore_server" type="boolean">
+  If `true`, skip all RCON server interaction during the update.
+</ParamField>
+
+<ParamField body="wingman" type="boolean">
+  Toggle wingman (2v2) game mode.
+</ParamField>
+
+<ParamField body="map_sides" type="string">
+  Comma-separated starting sides per map.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Match updated successfully!"` — or a note about server migration if applicable.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Update scores
+curl -X PUT https://your-g5api.example.com/matches \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "match_id": 42,
+    "team1_score": 1,
+    "team2_score": 0
+  }]'
+```
+
+```bash Cancel a match
+curl -X PUT https://your-g5api.example.com/matches \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "match_id": 42,
+    "cancelled": 1,
+    "end_time": "2026-03-17T20:30:00Z"
+  }]'
+```
+
+```bash Migrate to a different server
+curl -X PUT https://your-g5api.example.com/matches \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "match_id": 42,
+    "server_id": 5
+  }]'
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "message": "Match updated successfully!"
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Match is already finished, or server is already in use. |
+| `403`  | You do not own this match or the specified server. |
+| `404`  | Match not found. |
+| `412`  | No update data provided. |
+| `500`  | Internal server error. |

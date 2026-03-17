@@ -1,0 +1,196 @@
+---
+title: "Configuration overview"
+description: "How G5API uses node-config JSON files, what each environment file controls, and how Docker overrides values via environment variables."
+---
+
+G5API uses the [node-config](https://github.com/node-config/node-config) package to manage configuration. At startup, node-config reads a JSON file from the `config/` directory whose name matches the `NODE_ENV` environment variable. You never edit `app.ts` to change settings — all tunables live in these JSON files.
+
+## Config files
+
+Three environment files exist in the `config/` directory. Each corresponds to a `NODE_ENV` value:
+
+| File | `NODE_ENV` value | Typical use |
+|------|-----------------|-------------|
+| `development.json` | `development` | Local development with hot-reload via `tsc-watch` |
+| `production.json` | `production` | Docker / PM2 deployments |
+| `test.json` | `test` | Automated test suite (`yarn test`) |
+
+<Note>
+The repository only ships `.template` files. You must copy the template to create the actual file before starting the server.
+
+```bash
+cp config/development.json.template config/development.json
+```
+</Note>
+
+## Top-level config sections
+
+Every config file has four top-level sections:
+
+| Section | Purpose |
+|---------|---------|
+| `server` | HTTP server, session, Steam, Redis, and CORS settings |
+| `development` / `production` / `test` | Database connection (the key matches `NODE_ENV`) |
+| `admins` | Comma-separated Steam IDs granted admin privileges |
+| `super_admins` | Comma-separated Steam IDs granted super-admin privileges |
+
+## Full template with explanations
+
+<CodeGroup>
+
+```json development.json.template
+{
+  "server": {
+    "port": 3301,
+    "hostname": "http://localhost",
+    "dbKey": "Database 16 Byte Key.",
+    "steamAPIKey": "API Key For Steam Calls.",
+    "sharedSecret": "a secure secret for session sigining.",
+    "clientHome": "http://localhost:8080",
+    "useRedis": true,
+    "apiURL": "http://localhost:8080/api/",
+    "uploadDemos": false,
+    "localLoginEnabled": true,
+    "redisUrl": "redis://:super_secure@localhost:6379",
+    "redisTTL": 86400
+  },
+  "development": {
+    "driver": "mysql",
+    "user": "get5_user",
+    "password": "",
+    "database": "get5dev",
+    "multipleStatements": true,
+    "flags": { "ENV": "MYSQL_FLAGS" },
+    "host": "127.0.0.1",
+    "port": 3306,
+    "connectionLimit": 15
+  },
+  "admins": {
+    "steam_ids": "admins,go,here"
+  },
+  "super_admins": {
+    "steam_ids": "super_admins,go,here"
+  }
+}
+```
+
+```json production.json.template
+{
+  "server": {
+    "port": $PORT,
+    "hostname": "$HOSTNAME",
+    "dbKey": "$DBKEY",
+    "steamAPIKey": "$STEAMAPIKEY",
+    "sharedSecret": "$SHAREDSECRET",
+    "clientHome": "$CLIENTHOME",
+    "useRedis": $USEREDIS,
+    "apiURL": "$APIURL",
+    "uploadDemos": $UPLOADDEMOS,
+    "localLoginEnabled": $LOCALLOGINS,
+    "redisUrl": "$REDISURL",
+    "redisTTL": $REDISTTL
+  },
+  "production": {
+    "driver": "mysql",
+    "user": "$SQLUSER",
+    "password": "$SQLPASSWORD",
+    "database": "$DATABASE",
+    "multipleStatements": true,
+    "flags": { "ENV": "MYSQL_FLAGS" },
+    "host": "$SQLHOST",
+    "port": $SQLPORT,
+    "connectionLimit": 15
+  },
+  "admins": {
+    "steam_ids": "$ADMINS"
+  },
+  "super_admins": {
+    "steam_ids": "$SUPERADMINS"
+  }
+}
+```
+
+```json test.json.template
+{
+  "server": {
+    "port": 3301,
+    "hostname": "http://localhost",
+    "dbKey": "Database 16 Byte Key.",
+    "steamAPIKey": "API Key For Steam Calls.",
+    "sharedSecret": "a secure secret for session sigining.",
+    "clientHome": "http://localhost:8080",
+    "useRedis": false,
+    "apiURL": "http://localhost:8080/api/",
+    "uploadDemos": false,
+    "localLoginEnabled": true,
+    "redisUrl": "redis://:super_secure@localhost:6379",
+    "redisTTL": 86400
+  },
+  "test": {
+    "driver": "mysql",
+    "user": "get5_user",
+    "password": "",
+    "database": "get5test",
+    "multipleStatements": true,
+    "flags": { "ENV": "MYSQL_FLAGS" },
+    "host": "127.0.0.1",
+    "port": 3306,
+    "connectionLimit": 15
+  },
+  "admins": {
+    "steam_ids": "admins,go,here"
+  },
+  "super_admins": {
+    "steam_ids": "super_admins,go,here"
+  }
+}
+```
+
+</CodeGroup>
+
+## Environment variable overrides via Docker
+
+The production template uses shell variable placeholders (`$PORT`, `$STEAMAPIKEY`, etc.). The Docker image runs `envsubst` at container startup to substitute these placeholders with real values from container environment variables:
+
+```dockerfile
+CMD envsubst < /Get5API/config/production.json.template > /Get5API/config/production.json && \
+    yarn migrate-create-prod && \
+    yarn migrate-prod-upgrade && \
+    yarn startprod
+```
+
+Set each variable in your `docker-compose.yml` under the `environment` key:
+
+```yaml
+environment:
+  - NODE_ENV=production
+  - PORT=3301
+  - HOSTNAME=https://yourdomain.com
+  - DBKEY=your_16_byte_db_key
+  - STEAMAPIKEY=your_steam_api_key
+  - SHAREDSECRET=your_session_secret
+  - CLIENTHOME=https://yourdomain.com
+  - APIURL=https://yourdomain.com/api
+  - SQLUSER=get5
+  - SQLPASSWORD=your_db_password
+  - SQLPORT=3306
+  - DATABASE=get5
+  - SQLHOST=get5db
+  - ADMINS=76561198000000001,76561198000000002
+  - SUPERADMINS=76561198000000003
+  - REDISURL=redis://:your_redis_password@redis:6379
+  - REDISTTL=86400
+  - USEREDIS=true
+  - UPLOADDEMOS=true
+  - LOCALLOGINS=false
+```
+
+<Tip>
+For local development you do not need Docker. Copy `development.json.template` to `development.json`, fill in the values directly, and run `yarn start`.
+</Tip>
+
+## Related pages
+
+- [Database configuration](/configuration/database)
+- [Authentication configuration](/configuration/authentication)
+- [Redis configuration](/configuration/redis)

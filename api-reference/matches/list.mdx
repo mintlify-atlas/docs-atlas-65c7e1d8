@@ -1,0 +1,157 @@
+---
+title: "List Matches"
+description: "Retrieve all matches from the G5API system."
+---
+
+## Overview
+
+Returns all non-cancelled matches in the system, ordered by ID descending. By default, results are returned in descending order (newest first). Pass `asc=true` to reverse the order.
+
+<Note>
+  Cancelled matches are excluded from this listing. To see cancelled matches, query individual match records directly.
+</Note>
+
+## Endpoint
+
+```
+GET /matches/
+```
+
+## Query Parameters
+
+<ParamField query="asc" type="boolean" default="false">
+  Return results in ascending order (oldest first). Defaults to `false` (descending).
+</ParamField>
+
+## Response
+
+<ResponseField name="matches" type="array">
+  Array of match objects.
+
+  <Expandable title="Match object fields">
+    <ResponseField name="id" type="integer">
+      The unique match ID.
+    </ResponseField>
+    <ResponseField name="user_id" type="integer">
+      The ID of the user who created the match.
+    </ResponseField>
+    <ResponseField name="server_id" type="integer">
+      The ID of the game server assigned to this match. `null` if none assigned.
+    </ResponseField>
+    <ResponseField name="team1_id" type="integer">
+      The ID of team one.
+    </ResponseField>
+    <ResponseField name="team2_id" type="integer">
+      The ID of team two.
+    </ResponseField>
+    <ResponseField name="winner" type="integer">
+      The team ID of the winning team. `null` if the match has not ended.
+    </ResponseField>
+    <ResponseField name="team1_score" type="integer">
+      Series score for team 1 (number of maps won).
+    </ResponseField>
+    <ResponseField name="team2_score" type="integer">
+      Series score for team 2 (number of maps won).
+    </ResponseField>
+    <ResponseField name="team1_string" type="string">
+      The display name of team 1 at match creation time.
+    </ResponseField>
+    <ResponseField name="team2_string" type="string">
+      The display name of team 2 at match creation time.
+    </ResponseField>
+    <ResponseField name="cancelled" type="boolean">
+      Whether the match was cancelled.
+    </ResponseField>
+    <ResponseField name="forfeit" type="boolean">
+      Whether the match was forfeited.
+    </ResponseField>
+    <ResponseField name="start_time" type="string">
+      ISO 8601 datetime when the match started.
+    </ResponseField>
+    <ResponseField name="end_time" type="string">
+      ISO 8601 datetime when the match ended. `null` if still in progress.
+    </ResponseField>
+    <ResponseField name="max_maps" type="integer">
+      Maximum number of maps in the series (1, 2, or 3).
+    </ResponseField>
+    <ResponseField name="title" type="string">
+      Match title. Default format is `Map {MAPNUMBER} of {MAXMAPS}`.
+    </ResponseField>
+    <ResponseField name="skip_veto" type="boolean">
+      Whether the map veto was skipped.
+    </ResponseField>
+    <ResponseField name="private_match" type="boolean">
+      Whether match visibility is restricted to team members.
+    </ResponseField>
+    <ResponseField name="enforce_teams" type="boolean">
+      Whether the server enforces team rosters on match start.
+    </ResponseField>
+    <ResponseField name="min_player_ready" type="integer">
+      Minimum players required to ready up per team.
+    </ResponseField>
+    <ResponseField name="season_id" type="integer">
+      The season this match belongs to. `null` if no season.
+    </ResponseField>
+    <ResponseField name="is_pug" type="boolean">
+      Whether this is a PUG (pick-up game) match.
+    </ResponseField>
+    <ResponseField name="owner" type="string">
+      Display name of the user who created the match.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Default (descending)
+curl https://your-g5api.example.com/matches/
+```
+
+```bash Ascending order
+curl "https://your-g5api.example.com/matches/?asc=true"
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "matches": [
+    {
+      "id": 42,
+      "user_id": 1,
+      "server_id": 3,
+      "team1_id": 10,
+      "team2_id": 11,
+      "winner": null,
+      "team1_score": 0,
+      "team2_score": 0,
+      "team1_string": "Team Alpha",
+      "team2_string": "Team Bravo",
+      "cancelled": false,
+      "forfeit": false,
+      "start_time": "2026-03-17T18:00:00.000Z",
+      "end_time": null,
+      "max_maps": 3,
+      "title": "Map {MAPNUMBER} of {MAXMAPS}",
+      "skip_veto": false,
+      "private_match": false,
+      "enforce_teams": true,
+      "min_player_ready": 5,
+      "season_id": 2,
+      "is_pug": false,
+      "owner": "admin"
+    }
+  ]
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `404`  | No matches found in the system. |
+| `500`  | Internal server error. |

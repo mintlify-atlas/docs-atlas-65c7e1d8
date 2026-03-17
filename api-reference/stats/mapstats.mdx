@@ -1,0 +1,215 @@
+---
+title: "Map Stats"
+description: "Retrieve per-map statistics for CS2 matches tracked by G5API."
+---
+
+Map stats capture the outcome and timing of each map played within a match series. A new map stat record is created when a map goes live and updated when the map concludes.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/mapstats` | All map stats across every match |
+| GET | `/mapstats/:match_id` | All map stats for a specific match |
+| GET | `/mapstats/:match_id/:map_number` | Stats for one specific map in a match |
+| GET | `/mapstats/:match_id/stream` | Real-time SSE stream for a match's map stats |
+| GET | `/mapstats/:match_id/:map_number/stream` | Real-time SSE stream for one map |
+
+---
+
+## GET /mapstats
+
+Returns map statistics for every match stored in the system.
+
+<Note>
+  This endpoint returns all records and can be large on active servers. Prefer the per-match endpoints when you know the match ID.
+</Note>
+
+```bash
+curl https://your-g5api.example.com/mapstats
+```
+
+**Response `200`**
+
+```json
+{
+  "mapstats": [
+    {
+      "id": 1,
+      "match_id": 42,
+      "map_number": 0,
+      "map_name": "de_dust2",
+      "team1_score": 16,
+      "team2_score": 10,
+      "winner": 1,
+      "start_time": "2024-03-15T14:00:00.000Z",
+      "end_time": "2024-03-15T14:45:00.000Z",
+      "demoFile": "get5_demo_match42_map0_de_dust2.zip"
+    }
+  ]
+}
+```
+
+<ResponseField name="mapstats" type="array">
+  Array of map stat objects.
+  <Expandable title="MapStat fields">
+    <ResponseField name="id" type="integer">
+      Unique identifier of this map stat record.
+    </ResponseField>
+    <ResponseField name="match_id" type="integer" required>
+      Foreign key linking back to the parent match.
+    </ResponseField>
+    <ResponseField name="map_number" type="integer" required>
+      Zero-indexed map number within the best-of series.
+    </ResponseField>
+    <ResponseField name="map_name" type="string">
+      Workshop or official map name (e.g. `de_mirage`).
+    </ResponseField>
+    <ResponseField name="team1_score" type="integer">
+      Total rounds won by team 1 on this map.
+    </ResponseField>
+    <ResponseField name="team2_score" type="integer">
+      Total rounds won by team 2 on this map.
+    </ResponseField>
+    <ResponseField name="winner" type="integer">
+      Foreign key ID of the team that won the map. `null` if the map is still in progress.
+    </ResponseField>
+    <ResponseField name="start_time" type="string (date-time)" required>
+      ISO 8601 timestamp of when the map went live.
+    </ResponseField>
+    <ResponseField name="end_time" type="string (date-time)">
+      ISO 8601 timestamp of when the map ended. `null` while the map is live.
+    </ResponseField>
+    <ResponseField name="demoFile" type="string">
+      Filename (relative to the `public/demos/` directory) of the uploaded demo ZIP. `null` if demo upload is disabled or the demo has not yet been uploaded.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## GET /mapstats/:match_id
+
+Returns all map stat records for a given match.
+
+<ParamField path="match_id" type="integer" required>
+  The numeric ID of the match.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/mapstats/42
+```
+
+**Response `200`**
+
+```json
+{
+  "mapstats": [
+    {
+      "id": 1,
+      "match_id": 42,
+      "map_number": 0,
+      "map_name": "de_dust2",
+      "team1_score": 16,
+      "team2_score": 10,
+      "winner": 1,
+      "start_time": "2024-03-15T14:00:00.000Z",
+      "end_time": "2024-03-15T14:45:00.000Z",
+      "demoFile": "get5_demo_match42_map0_de_dust2.zip"
+    },
+    {
+      "id": 2,
+      "match_id": 42,
+      "map_number": 1,
+      "map_name": "de_inferno",
+      "team1_score": 13,
+      "team2_score": 16,
+      "winner": 2,
+      "start_time": "2024-03-15T15:00:00.000Z",
+      "end_time": "2024-03-15T15:50:00.000Z",
+      "demoFile": "get5_demo_match42_map1_de_inferno.zip"
+    }
+  ]
+}
+```
+
+**Response `404`** — No stats found for this match.
+
+---
+
+## GET /mapstats/:match_id/:map_number
+
+Returns the stat record for a single map within a match. The response key is the singular `mapstat`.
+
+<ParamField path="match_id" type="integer" required>
+  The numeric ID of the match.
+</ParamField>
+
+<ParamField path="map_number" type="integer" required>
+  Zero-indexed map number in the series (`0` = first map, `1` = second, etc.).
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/mapstats/42/0
+```
+
+**Response `200`**
+
+```json
+{
+  "mapstat": {
+    "id": 1,
+    "match_id": 42,
+    "map_number": 0,
+    "map_name": "de_dust2",
+    "team1_score": 16,
+    "team2_score": 10,
+    "winner": 1,
+    "start_time": "2024-03-15T14:00:00.000Z",
+    "end_time": "2024-03-15T14:45:00.000Z",
+    "demoFile": "get5_demo_match42_map0_de_dust2.zip"
+  }
+}
+```
+
+---
+
+## Real-time Streams (SSE)
+
+G5API exposes two Server-Sent Events endpoints for live map stat updates. These use the `text/event-stream` content type and push a new event whenever map stats change.
+
+<Note>
+  SSE connections are long-lived. Use `EventSource` in a browser or an SSE-capable HTTP client. The connection is closed automatically when the client disconnects.
+</Note>
+
+### GET /mapstats/:match_id/stream
+
+Streams all map stats for a match as they update.
+
+```bash
+curl -N -H "Accept: text/event-stream" \
+  https://your-g5api.example.com/mapstats/42/stream
+```
+
+Each message uses event name `mapstats` and carries a JSON array of map stat objects.
+
+```
+event: mapstats
+data: [{"id":1,"match_id":42,"map_number":0,...}]
+```
+
+### GET /mapstats/:match_id/:map_number/stream
+
+Streams a single map's stats as they update.
+
+```bash
+curl -N -H "Accept: text/event-stream" \
+  https://your-g5api.example.com/mapstats/42/0/stream
+```
+
+Each message uses event name `mapstats` and carries a single map stat object.
+
+```
+event: mapstats
+data: {"id":1,"match_id":42,"map_number":0,...}
+```

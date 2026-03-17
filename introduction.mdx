@@ -1,0 +1,70 @@
+---
+title: Introduction
+description: G5API — A REST API backend for managing CS2 competitive matches, teams, seasons, and statistics.
+---
+
+# G5API
+
+G5API is an Express-based REST API backend for Counter-Strike 2 (CS2) competitive match management. It serves as a replacement for the legacy get5-webpanel, providing a modern Node.js/TypeScript foundation that integrates with the [MatchZy](https://shobhit-pathak.github.io/MatchZy/) and [PugSharp](https://github.com/Lan2Play/PugSharp) CS2 plugins.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get your G5API instance running in minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Detailed setup instructions for all environments
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Full documentation of every endpoint
+  </Card>
+  <Card title="Docker Deploy" icon="docker" href="/deployment/docker">
+    Run G5API with Docker or Docker Compose
+  </Card>
+</CardGroup>
+
+## What G5API does
+
+G5API allows you to create, manage, and control CS2 matches programmatically. It integrates with game servers via RCON and provides callbacks for plugin events.
+
+<CardGroup cols={2}>
+  <Card title="Match Management" icon="gamepad">
+    Create and control CS2 matches, assign teams, configure maps, and track match state end-to-end
+  </Card>
+  <Card title="Team Management" icon="users">
+    Manage team rosters with Steam ID validation, team logos, and player authentication
+  </Card>
+  <Card title="Statistics" icon="chart-bar">
+    Automatically record map stats, player stats, kill feeds, vetoes, and leaderboards per match or season
+  </Card>
+  <Card title="Seasons & Tournaments" icon="trophy">
+    Organize matches into seasons with date ranges, optional Challonge bracket integration, and CVARs
+  </Card>
+  <Card title="Steam OAuth" icon="steam">
+    Authenticate players via Steam OpenID or local username/password accounts
+  </Card>
+  <Card title="Server RCON" icon="server">
+    Register CS2 game servers and send RCON commands directly from the API
+  </Card>
+  <Card title="Demo & Backup Files" icon="file">
+    Accept demo uploads from game servers and expose backup files for download
+  </Card>
+  <Card title="Swagger UI" icon="book">
+    Interactive OpenAPI documentation available at `/api-docs` on every running instance
+  </Card>
+</CardGroup>
+
+## Supported plugins
+
+G5API supports match event callbacks from:
+
+- **[MatchZy](https://shobhit-pathak.github.io/MatchZy/)** — A CS2 practice and match plugin
+- **[PugSharp](https://github.com/Lan2Play/PugSharp)** — A CS2 pug/match management plugin
+- **[get5](https://github.com/splewis/get5)** — The original CS:GO match plugin (legacy support via `/match` routes)
+
+## Front-end
+
+G5API is backend-only. For a ready-made front-end, use **[G5V](https://github.com/phlexplexico/g5v)**, which provides a Vue-based UI that works out of the box with G5API.
+
+## License
+
+G5API is released under the [MIT License](https://github.com/PhlexPlexico/G5API/blob/master/LICENSE).

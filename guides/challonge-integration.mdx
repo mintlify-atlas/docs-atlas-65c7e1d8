@@ -1,0 +1,124 @@
+---
+title: Challonge Integration
+description: Import a Challonge tournament as a G5API season and automatically update brackets after each match.
+---
+
+G5API can import a Challonge tournament as a season and automatically report match results back to Challonge when a series ends. This keeps your bracket up to date without manual intervention.
+
+## How It Works
+
+<Steps>
+  <Step title="Store your Challonge API key">
+    Each user stores their own Challonge API key on their profile. The key is encrypted with AES before being saved to the database.
+
+    Update your profile with your Challonge API key:
+
+    ```bash
+    curl -X PUT https://your-g5api.example.com/users \
+      -H "user-api: 42:ABCDEF..." \
+      -H "Content-Type: application/json" \
+      -d '[{
+        "steam_id": "76561198012345678",
+        "challonge_api_key": "your_challonge_api_key"
+      }]'
+    ```
+
+    Your Challonge API key can be found at [challonge.com/settings/developer](https://challonge.com/settings/developer).
+  </Step>
+
+  <Step title="Import the tournament as a season">
+    ```bash
+    curl -X POST https://your-g5api.example.com/seasons/challonge \
+      -H "user-api: 42:ABCDEF..." \
+      -H "Content-Type: application/json" \
+      -d '[{
+        "tournament_id": "my_tournament_url",
+        "import_teams": true
+      }]'
+    ```
+
+    **Response:**
+
+    ```json
+    {
+      "message": "Challonge season imported successfully!",
+      "id": 7
+    }
+    ```
+
+    G5API calls the Challonge API to retrieve tournament metadata (`name`, `created_at`, `live_image_url`) and stores the season with `is_challonge = true` and `challonge_url` set to the tournament ID you provided.
+  </Step>
+
+  <Step title="Optionally import teams">
+    If `import_teams: true` is set, G5API reads the tournament's participant list from Challonge and inserts each participant as a team. Teams are created with:
+    - `name` and `tag` set to the participant's `display_name` (truncated to 40 characters).
+    - `challonge_team_id` set to the Challonge participant ID.
+
+    <Note>
+      Teams imported from Challonge will not have Steam player rosters. You must add players to each team separately via `PUT /teams` before creating matches.
+    </Note>
+  </Step>
+
+  <Step title="Create matches linked to the season">
+    Create your G5API matches with the Challonge season's ID:
+
+    ```bash
+    curl -X POST https://your-g5api.example.com/matches \
+      -H "user-api: 42:ABCDEF..." \
+      -H "Content-Type: application/json" \
+      -d '[{
+        "team1_id": 10,
+        "team2_id": 11,
+        "server_id": 3,
+        "max_maps": 1,
+        "title": "Quarter Final",
+        "skip_veto": true,
+        "season_id": 7
+      }]'
+    ```
+
+    Both `team1_id` and `team2_id` must correspond to teams that have a `challonge_team_id` set for the bracket update to work correctly.
+  </Step>
+</Steps>
+
+## Automatic Bracket Updates
+
+When a series ends (the get5 plugin sends a `series_end` event to `POST /v2`), G5API checks whether the match has a `season_id`. If the season has a `challonge_url` set, the following happens automatically:
+
+1. **Fetch the open Challonge match** between the two participants using the Challonge Matches API, filtered by `state=open` and both participant IDs.
+2. **Determine scores**: For a Best-of-1, map scores are pulled from `map_stats`. For longer series, series scores are pulled from the `match` table.
+3. **Submit results** via a `PUT` to the Challonge match endpoint with `scores_csv` and `winner_id`.
+4. **Check for remaining open matches**: If no open matches remain in the tournament, G5API calls the Challonge finalize endpoint and sets `end_date` on the G5API season to the current time.
+
+<Note>
+  Score reporting handles the case where team1 and team2 are swapped relative to Challonge's `player1`/`player2` ordering. G5API reads the Challonge match's `player1_id` and `player2_id` to assign scores correctly regardless of the order teams were entered.
+</Note>
+
+## Limitations and Requirements
+
+<Warning>
+  The Challonge integration will silently skip the bracket update if any of the following conditions are not met:
+  - The season does not have a `challonge_url` set (i.e., it was not created via `POST /seasons/challonge`).
+  - The teams in the match do not have a `challonge_team_id` set.
+  - The user who owns the season does not have a `challonge_api_key` stored in their profile.
+  - No open Challonge match exists for the two participants.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="One API key per season owner" icon="key">
+    The Challonge API key used for bracket updates belongs to the user who owns the season, not the user who created the match. Ensure the season owner's key is set.
+  </Card>
+  <Card title="Teams must exist in Challonge" icon="users">
+    Only teams with a `challonge_team_id` can trigger bracket updates. Teams created outside of the `import_teams` flow must have their `challonge_team_id` set manually.
+  </Card>
+  <Card title="Tournament must be in progress" icon="circle-play">
+    The Challonge tournament must be started (not just created) before G5API can find open matches to update.
+  </Card>
+  <Card title="Series cancellations are not reported" icon="ban">
+    If a match is cancelled (e.g., `series_end` with winner `none` and 0-0 series score), G5API skips the Challonge update entirely.
+  </Card>
+</CardGroup>
+
+## Viewing the Challonge Bracket
+
+When a season is linked to Challonge, the `challonge_svg` field on the season record contains the `live_image_url` from Challonge — a direct link to the live bracket image that updates automatically as matches are reported.

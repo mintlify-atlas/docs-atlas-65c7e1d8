@@ -1,0 +1,252 @@
+---
+title: Production deployment
+description: Run G5API in production with PM2, configure NGINX as a reverse proxy, and manage the process lifecycle.
+---
+
+## Prerequisites
+
+- Node.js >= 16.17.0
+- MariaDB or MySQL database
+- Redis (optional but recommended for session management)
+- PM2 installed globally (`npm install -g pm2`) or available via `yarn`
+- A built application (`yarn build`)
+
+## Building for production
+
+Before starting the server for the first time, compile the TypeScript source:
+
+```bash
+yarn build
+```
+
+This runs `tsc` and emits the compiled output to `./dist`.
+
+## Configuring production.json
+
+Copy the template and fill in your values:
+
+```bash
+cp config/production.json.template config/production.json
+```
+
+The template uses shell variable substitution syntax. You can either edit the file directly, or export environment variables and run `envsubst` as the Docker image does.
+
+The full `config/production.json.template` structure is:
+
+```json
+{
+  "server": {
+    "port": $PORT,
+    "hostname": "$HOSTNAME",
+    "dbKey": "$DBKEY",
+    "steamAPIKey": "$STEAMAPIKEY",
+    "sharedSecret": "$SHAREDSECRET",
+    "clientHome": "$CLIENTHOME",
+    "useRedis": $USEREDIS,
+    "apiURL": "$APIURL",
+    "uploadDemos": $UPLOADDEMOS,
+    "localLoginEnabled": $LOCALLOGINS,
+    "redisUrl": "$REDISURL",
+    "redisTTL": $REDISTTL
+  },
+  "production": {
+    "driver": "mysql",
+    "user": "$SQLUSER",
+    "password": "$SQLPASSWORD",
+    "database": "$DATABASE",
+    "multipleStatements": true,
+    "flags": { "ENV": "MYSQL_FLAGS" },
+    "host": "$SQLHOST",
+    "port": $SQLPORT,
+    "connectionLimit": 15
+  },
+  "admins": {
+    "steam_ids": "$ADMINS"
+  },
+  "super_admins": {
+    "steam_ids": "$SUPERADMINS"
+  }
+}
+```
+
+| Field | Description |
+|---|---|
+| `port` | Port the API process listens on. |
+| `hostname` | Public URL of the server, used for Steam OAuth callbacks. |
+| `dbKey` | AES key for encrypting sensitive database fields. |
+| `steamAPIKey` | Steam Web API key. |
+| `sharedSecret` | Secret shared with CS2 game servers. |
+| `clientHome` | URL of the front-end, used for CORS and post-auth redirects. |
+| `useRedis` | Boolean. Enable Redis session store. |
+| `apiURL` | Public URL of the API (e.g. `https://example.com/api`). |
+| `uploadDemos` | Boolean. Allow demo file uploads. |
+| `localLoginEnabled` | Boolean. Enable local username/password logins. |
+| `redisUrl` | Redis connection string. |
+| `redisTTL` | Session TTL in seconds. |
+| `connectionLimit` | Max simultaneous database connections (default `15`). |
+
+## Database migration
+
+Run migrations to create the database schema before starting the server.
+
+<Steps>
+  <Step title="Create the database">
+    ```bash
+    yarn migrate-create-prod
+    ```
+    This creates the database specified in `production.json` if it does not already exist. It uses the `MYSQL_FLAGS=-CONNECT_WITH_DB` flag so the driver connects without selecting a database first.
+  </Step>
+  <Step title="Apply all migrations">
+    ```bash
+    yarn migrate-prod-upgrade
+    ```
+    This applies every pending migration under `migrations/production/`. It will not drop any existing data.
+  </Step>
+</Steps>
+
+<Note>
+On subsequent upgrades, you only need to run `yarn migrate-prod-upgrade`. The `migrate-create-prod` step is only required when setting up a new database from scratch.
+</Note>
+
+## Starting with PM2
+
+G5API uses [PM2](https://pm2.keymetrics.io/) as its process manager. The `prodrun.json` ecosystem file configures the process:
+
+```json
+{
+  "apps": [
+    {
+      "name": "G5API",
+      "script": "./dist/bin/www.js",
+      "instances": 1,
+      "exec_mode": "fork",
+      "instance_var": "INSTANCE_ID",
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  ]
+}
+```
+
+Start the process:
+
+```bash
+yarn startprod
+```
+
+This runs `pm2 start ./prodrun.json --name "G5API"`. PM2 will keep the process alive and restart it on crash.
+
+## Managing the process
+
+<CodeGroup>
+
+```bash Restart
+yarn restartprod
+```
+
+```bash Stop and delete
+yarn stopprod
+```
+
+```bash View logs
+pm2 logs G5API
+```
+
+```bash Monitor
+pm2 monit
+```
+
+</CodeGroup>
+
+`yarn stopprod` runs `pm2 stop G5API; pm2 delete G5API`, which stops the process and removes it from the PM2 process list.
+
+<Tip>
+To have PM2 survive a system reboot, run `pm2 startup` and follow the printed instructions, then run `pm2 save` after G5API is running.
+</Tip>
+
+## NGINX reverse proxy
+
+If you are running G5API on a server alongside other services, configure NGINX to proxy API requests to the Node process:
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+
+    # G5V front-end
+    location / {
+        proxy_pass         http://127.0.0.1:80;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection 'upgrade';
+        proxy_set_header   Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # G5API backend
+    location /api/ {
+        proxy_pass         http://127.0.0.1:3301;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection 'upgrade';
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+<Note>
+Ensure the `APIURL` in `production.json` is set to the proxied path (e.g. `https://example.com/api`) so that Steam OAuth redirect URLs and internal links are generated correctly.
+</Note>
+
+## Verifying the deployment
+
+After starting the server, confirm it is reachable:
+
+```bash
+curl https://example.com/api/v1/users
+```
+
+A `401 Unauthorized` or a JSON response (rather than a connection error) confirms the API is running and the reverse proxy is routing correctly.
+
+You can also check the Swagger UI at `/api-docs` in your browser, which lists all available endpoints.
+
+## Updating G5API
+
+To deploy a new version:
+
+<Steps>
+  <Step title="Pull the latest code">
+    ```bash
+    git pull origin master
+    ```
+  </Step>
+  <Step title="Rebuild the application">
+    ```bash
+    yarn && yarn build
+    ```
+  </Step>
+  <Step title="Apply any new migrations">
+    ```bash
+    yarn migrate-prod-upgrade
+    ```
+  </Step>
+  <Step title="Restart the process">
+    ```bash
+    yarn restartprod
+    ```
+  </Step>
+</Steps>

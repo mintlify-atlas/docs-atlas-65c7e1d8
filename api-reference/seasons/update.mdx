@@ -1,0 +1,101 @@
+---
+title: "Update Season"
+description: "Update season details and default CVARs."
+---
+
+## Overview
+
+Updates an existing season. You must own the season or be a super-admin. Providing a new `season_cvar` object replaces all existing CVARs for that season — the previous CVAR set is deleted and the new one is inserted.
+
+<Note>
+  Authentication is required. Only the season owner or a super-admin can update a season.
+</Note>
+
+<Warning>
+  Updating `season_cvar` is a full replacement, not a merge. All previous CVARs are deleted before the new ones are inserted.
+</Warning>
+
+## Endpoint
+
+```
+PUT /seasons
+```
+
+## Request Body
+
+Send a JSON array containing one update object. `season_id` is required.
+
+<ParamField body="season_id" type="integer" required>
+  The ID of the season to update.
+</ParamField>
+
+<ParamField body="name" type="string">
+  New display name for the season.
+</ParamField>
+
+<ParamField body="start_date" type="string">
+  Updated start date in ISO 8601 format.
+</ParamField>
+
+<ParamField body="end_date" type="string">
+  Updated end date in ISO 8601 format. Pass `null` explicitly to clear the end date.
+</ParamField>
+
+<ParamField body="season_cvar" type="object">
+  Replacement set of default server CVARs. All previous CVARs are removed and replaced with this set.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Season updated successfully!"`
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Update season name and end date
+curl -X PUT https://your-g5api.example.com/seasons \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "season_id": 2,
+    "name": "Spring 2026 Championship",
+    "end_date": "2026-07-15T00:00:00Z"
+  }]'
+```
+
+```bash Replace CVARs
+curl -X PUT https://your-g5api.example.com/seasons \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION" \
+  -d '[{
+    "season_id": 2,
+    "season_cvar": {
+      "mp_overtime_enable": "1",
+      "mp_overtime_maxrounds": "6",
+      "mp_freezetime": "20"
+    }
+  }]'
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "message": "Season updated successfully!"
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `400`  | No `season_id` provided in the request body. |
+| `403`  | You do not own this season. |
+| `404`  | Season not found. |
+| `412`  | No update data provided. |
+| `500`  | Internal server error. |

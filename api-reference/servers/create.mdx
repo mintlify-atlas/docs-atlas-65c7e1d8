@@ -1,0 +1,93 @@
+---
+title: 'Create server'
+description: 'Register a new game server with its connection details and RCON password.'
+---
+
+`POST /servers`
+
+Registers a new CS2 game server. The RCON password is encrypted before being stored in the database. After insertion, G5API immediately attempts to connect to the server via RCON to verify it is reachable. If the server does not respond within the timeout, the record is still saved.
+
+<Warning>
+  Authentication is required. You must be logged in to register a server.
+</Warning>
+
+## Request body
+
+The request body must be a JSON array with a single server object at index `0`.
+
+<ParamField body="ip_string" type="string" required>
+  IP address or hostname of the game server.
+</ParamField>
+
+<ParamField body="port" type="integer" required>
+  Game server port. Typically `27015`.
+</ParamField>
+
+<ParamField body="rcon_password" type="string" required>
+  RCON password used to control the server. This is encrypted before storage.
+</ParamField>
+
+<ParamField body="display_name" type="string">
+  Human-readable label for the server shown in the UI.
+</ParamField>
+
+<ParamField body="public_server" type="integer">
+  Set to `1` to allow any user to schedule matches on this server. Defaults to `0` (private).
+</ParamField>
+
+<ParamField body="flag" type="string">
+  Two-letter country code representing the server region (e.g. `DE`, `US`, `SG`).
+</ParamField>
+
+<ParamField body="gotv_port" type="integer">
+  Optional GOTV spectator port. Typically `27020`.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Game server inserted successfully!"` if the server responded to RCON, or `"Game Server did not respond in time. However, we have still inserted the server successfully."` if it did not.
+</ResponseField>
+
+<ResponseField name="id" type="integer">
+  The newly created server ID. Included when the server responds successfully.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://your-g5api-host.com/servers \
+  --header 'Content-Type: application/json' \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE' \
+  --data '[
+    {
+      "ip_string": "192.0.2.10",
+      "port": 27015,
+      "rcon_password": "supersecret",
+      "display_name": "EU Match Server 1",
+      "public_server": 1,
+      "flag": "DE",
+      "gotv_port": 27020
+    }
+  ]'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "message": "Game server inserted successfully!",
+  "id": 5
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `400`  | Bad request — missing or malformed fields. |
+| `500`  | Internal server error. |

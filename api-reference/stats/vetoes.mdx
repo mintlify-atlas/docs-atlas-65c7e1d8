@@ -1,0 +1,212 @@
+---
+title: "Vetoes"
+description: "Map pick/ban sequences and starting-side selections for CS2 matches."
+---
+
+G5API tracks two related tables that record map selection:
+
+- **Vetoes** (`/vetoes`) — each pick, ban, or decider action during the map veto phase.
+- **Veto Sides** (`/vetosides`) — the starting-side choice (CT or T) made for each picked map.
+
+Both tables are populated in real time by the v2 plugin callback API as the game server reports events.
+
+## Veto Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/vetoes` | All veto records in the system |
+| GET | `/vetoes/:match_id` | All vetoes for a specific match |
+| GET | `/vetoes/:match_id/stream` | Real-time SSE stream of vetoes for a match |
+
+---
+
+## GET /vetoes
+
+Returns every veto record stored in the system.
+
+```bash
+curl https://your-g5api.example.com/vetoes
+```
+
+**Response `200`**
+
+```json
+{
+  "vetoes": [
+    {
+      "id": 1,
+      "match_id": 42,
+      "team_name": "Team Alpha",
+      "map": "de_mirage",
+      "pick_or_veto": "ban"
+    },
+    {
+      "id": 2,
+      "match_id": 42,
+      "team_name": "Team Bravo",
+      "map": "de_inferno",
+      "pick_or_veto": "ban"
+    },
+    {
+      "id": 3,
+      "match_id": 42,
+      "team_name": "Team Alpha",
+      "map": "de_dust2",
+      "pick_or_veto": "pick"
+    },
+    {
+      "id": 4,
+      "match_id": 42,
+      "team_name": null,
+      "map": "de_overpass",
+      "pick_or_veto": "decider"
+    }
+  ]
+}
+```
+
+<ResponseField name="vetoes" type="array">
+  <Expandable title="VetoData fields">
+    <ResponseField name="id" type="integer">
+      Unique identifier for this veto action.
+    </ResponseField>
+    <ResponseField name="match_id" type="integer">
+      Foreign key linking to the parent match.
+    </ResponseField>
+    <ResponseField name="team_name" type="string">
+      Name of the team that performed the action. `null` for decider maps (which are not chosen by either team).
+    </ResponseField>
+    <ResponseField name="map" type="string">
+      Map name acted on (e.g. `de_dust2`, `de_mirage`).
+    </ResponseField>
+    <ResponseField name="pick_or_veto" type="string">
+      The action taken. One of:
+      - `pick` — the team chose this map to be played
+      - `ban` — the team removed this map from the pool
+      - `decider` — this map was left as the deciding map
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## GET /vetoes/:match_id
+
+Returns all veto actions for a specific match in the order they were recorded.
+
+<ParamField path="match_id" type="integer" required>
+  The numeric ID of the match.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/vetoes/42
+```
+
+**Response `200`**
+
+```json
+{
+  "vetoes": [
+    { "id": 1, "match_id": 42, "team_name": "Team Alpha", "map": "de_mirage", "pick_or_veto": "ban" },
+    { "id": 2, "match_id": 42, "team_name": "Team Bravo", "map": "de_inferno", "pick_or_veto": "ban" },
+    { "id": 3, "match_id": 42, "team_name": "Team Alpha", "map": "de_dust2", "pick_or_veto": "pick" },
+    { "id": 4, "match_id": 42, "team_name": null, "map": "de_overpass", "pick_or_veto": "decider" }
+  ]
+}
+```
+
+**Response `404`** — No veto records found for this match.
+
+---
+
+## Real-time Stream — GET /vetoes/:match_id/stream
+
+Streams veto updates for a match as a Server-Sent Event stream.
+
+```bash
+curl -N -H "Accept: text/event-stream" \
+  https://your-g5api.example.com/vetoes/42/stream
+```
+
+Each push uses event name `vetodata` with a JSON array of the current veto list.
+
+```
+event: vetodata
+data: [{"id":1,"match_id":42,"team_name":"Team Alpha","map":"de_mirage","pick_or_veto":"ban"}]
+```
+
+---
+
+## Veto Side Endpoints
+
+After a map is picked, the picking team (or the server plugin) records which side that team starts on.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/vetosides` | All veto side records |
+| GET | `/vetosides/:match_id` | Side selections for a specific match |
+| GET | `/vetosides/:match_id/stream` | Real-time SSE stream of side selections |
+
+### GET /vetosides/:match_id
+
+<ParamField path="match_id" type="integer" required>
+  The numeric ID of the match.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/vetosides/42
+```
+
+**Response `200`**
+
+```json
+{
+  "vetoes": [
+    {
+      "id": 1,
+      "match_id": 42,
+      "veto_id": 3,
+      "team_name": "Team Alpha",
+      "map": "de_dust2",
+      "side": "ct"
+    }
+  ]
+}
+```
+
+<ResponseField name="vetoes" type="array">
+  <Expandable title="VetoSideData fields">
+    <ResponseField name="id" type="integer">
+      Unique identifier for this side-selection record.
+    </ResponseField>
+    <ResponseField name="match_id" type="integer">
+      Foreign key to the parent match.
+    </ResponseField>
+    <ResponseField name="veto_id" type="integer">
+      Foreign key to the veto record this side selection is associated with.
+    </ResponseField>
+    <ResponseField name="team_name" type="string">
+      Name of the team that selected the starting side.
+    </ResponseField>
+    <ResponseField name="map" type="string">
+      The map this side selection applies to.
+    </ResponseField>
+    <ResponseField name="side" type="string">
+      The chosen starting side. One of `ct`, `t`, or `none`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Real-time Stream — GET /vetosides/:match_id/stream
+
+```bash
+curl -N -H "Accept: text/event-stream" \
+  https://your-g5api.example.com/vetosides/42/stream
+```
+
+Each push uses event name `vetosidedata` with a JSON array of the current veto side list.
+
+```
+event: vetosidedata
+data: [{"id":1,"match_id":42,"team_name":"Team Alpha","map":"de_dust2","side":"ct"}]
+```

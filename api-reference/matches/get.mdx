@@ -1,0 +1,151 @@
+---
+title: "Get Match"
+description: "Retrieve details for a single match by ID."
+---
+
+## Overview
+
+Returns the full details of a specific match. Authenticated match owners and super-admins receive additional fields (e.g., `api_key`, internal server data). All other users receive the standard public field set.
+
+## Endpoint
+
+```
+GET /matches/:match_id
+```
+
+## Path Parameters
+
+<ParamField path="match_id" type="integer" required>
+  The unique ID of the match to retrieve.
+</ParamField>
+
+## Response
+
+<ResponseField name="match" type="object">
+  The match record.
+
+  <Expandable title="Match fields">
+    <ResponseField name="id" type="integer">
+      Match ID.
+    </ResponseField>
+    <ResponseField name="user_id" type="integer">
+      ID of the user who created the match.
+    </ResponseField>
+    <ResponseField name="server_id" type="integer">
+      ID of the assigned game server. `null` if unassigned.
+    </ResponseField>
+    <ResponseField name="team1_id" type="integer">
+      ID of team one.
+    </ResponseField>
+    <ResponseField name="team2_id" type="integer">
+      ID of team two.
+    </ResponseField>
+    <ResponseField name="winner" type="integer">
+      Team ID of the winner. `null` while match is in progress.
+    </ResponseField>
+    <ResponseField name="team1_score" type="integer">
+      Series map wins for team 1.
+    </ResponseField>
+    <ResponseField name="team2_score" type="integer">
+      Series map wins for team 2.
+    </ResponseField>
+    <ResponseField name="team1_series_score" type="integer">
+      Overall series score for team 1.
+    </ResponseField>
+    <ResponseField name="team2_series_score" type="integer">
+      Overall series score for team 2.
+    </ResponseField>
+    <ResponseField name="team1_string" type="string">
+      Team 1 display name at match creation.
+    </ResponseField>
+    <ResponseField name="team2_string" type="string">
+      Team 2 display name at match creation.
+    </ResponseField>
+    <ResponseField name="cancelled" type="boolean">
+      Whether the match was cancelled.
+    </ResponseField>
+    <ResponseField name="forfeit" type="boolean">
+      Whether the match was forfeited.
+    </ResponseField>
+    <ResponseField name="start_time" type="string">
+      ISO 8601 start datetime.
+    </ResponseField>
+    <ResponseField name="end_time" type="string">
+      ISO 8601 end datetime. `null` while in progress.
+    </ResponseField>
+    <ResponseField name="max_maps" type="integer">
+      Maximum maps in the series.
+    </ResponseField>
+    <ResponseField name="title" type="string">
+      Match title.
+    </ResponseField>
+    <ResponseField name="skip_veto" type="boolean">
+      Whether map veto was skipped.
+    </ResponseField>
+    <ResponseField name="private_match" type="boolean">
+      Whether the match has restricted visibility.
+    </ResponseField>
+    <ResponseField name="enforce_teams" type="boolean">
+      Whether team rosters are enforced.
+    </ResponseField>
+    <ResponseField name="min_player_ready" type="integer">
+      Minimum players required to ready up per team.
+    </ResponseField>
+    <ResponseField name="season_id" type="integer">
+      Season ID this match belongs to. `null` if none.
+    </ResponseField>
+    <ResponseField name="is_pug" type="boolean">
+      Whether this is a PUG match.
+    </ResponseField>
+    <ResponseField name="map_sides" type="string">
+      Comma-separated starting sides per map.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```bash
+curl https://your-g5api.example.com/matches/42
+```
+
+### Response
+
+```json
+{
+  "match": {
+    "id": 42,
+    "user_id": 1,
+    "server_id": 3,
+    "team1_id": 10,
+    "team2_id": 11,
+    "winner": null,
+    "team1_score": 1,
+    "team2_score": 0,
+    "team1_series_score": 0,
+    "team2_series_score": 0,
+    "team1_string": "Team Alpha",
+    "team2_string": "Team Bravo",
+    "cancelled": false,
+    "forfeit": false,
+    "start_time": "2026-03-17T18:00:00.000Z",
+    "end_time": null,
+    "max_maps": 3,
+    "title": "Map {MAPNUMBER} of {MAXMAPS}",
+    "skip_veto": false,
+    "private_match": false,
+    "enforce_teams": true,
+    "min_player_ready": 5,
+    "season_id": 2,
+    "is_pug": false,
+    "map_sides": null
+  }
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `404`  | No match found with the given ID. |
+| `500`  | Internal server error. |

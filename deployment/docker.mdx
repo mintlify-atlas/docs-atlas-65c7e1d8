@@ -1,0 +1,136 @@
+---
+title: Docker
+description: Build and run G5API as a standalone Docker container with an external MariaDB or MySQL database.
+---
+
+## Prerequisites
+
+Before running G5API in Docker, ensure you have:
+
+- Docker installed and running on your host
+- An external MariaDB or MySQL compatible database server (G5API does not bundle a database in the standalone image)
+- A Steam API key from the [Steam developer portal](https://steamcommunity.com/dev/apikey)
+- A Redis instance reachable from the container (optional but recommended)
+
+<Note>
+The standalone Docker image does not include a database. You must provide a MariaDB or MySQL server separately. Follow the [MariaDB Docker guide](https://hub.docker.com/_/mariadb/) if you need to spin one up quickly.
+</Note>
+
+## Building the image
+
+Clone the repository and build the image from the provided `Dockerfile`:
+
+```bash
+docker build -t yourname/g5api:latest .
+```
+
+The build process uses `node:18-alpine` as a base, installs dependencies with `yarn`, compiles the TypeScript source, and stages the application in `/Get5API`.
+
+<Tip>
+You can also pull the pre-built image from the GitHub Container Registry instead of building locally:
+
+```bash
+docker pull ghcr.io/phlexplexico/g5api:latest
+```
+</Tip>
+
+## Running the container
+
+Once the image is built, start the container with all required environment variables:
+
+```bash
+docker container run --name g5api \
+  -p 3301:3301 \
+  -v redisVol:/RedisFiles \
+  -e PORT="3301" \
+  -e HOSTNAME="" \
+  -e DBKEY="" \
+  -e STEAMAPIKEY="" \
+  -e SHAREDSECRET="" \
+  -e CLIENTHOME="" \
+  -e APIURL="" \
+  -e SQLUSER="" \
+  -e SQLPASSWORD="" \
+  -e DATABASE="" \
+  -e SQLHOST="" \
+  -e SQLPORT="" \
+  -e ADMINS="" \
+  -e SUPERADMINS="" \
+  -e REDISURL="" \
+  -e REDISTTL="" \
+  -e USEREDIS="true" \
+  -e UPLOADDEMOS="" \
+  -e LOCALLOGINS="" \
+  yourname/g5api:latest
+```
+
+## Environment variables
+
+Every `-e` flag maps directly to a field in `config/production.json.template`, which the container generates at startup via `envsubst`.
+
+| Variable | Description |
+|---|---|
+| `PORT` | Port the API listens on. Should match the `-p` mapping (default `3301`). |
+| `HOSTNAME` | Public hostname of this server, e.g. `https://example.com`. |
+| `DBKEY` | AES encryption key used to encrypt sensitive database values. |
+| `STEAMAPIKEY` | Steam Web API key for authentication. |
+| `SHAREDSECRET` | Shared secret between G5API and your CS2 game servers. |
+| `CLIENTHOME` | URL of the front-end client (e.g. G5V), used for CORS and redirects. |
+| `APIURL` | Public URL of the API itself, e.g. `https://example.com/api`. |
+| `SQLUSER` | MySQL/MariaDB username. |
+| `SQLPASSWORD` | MySQL/MariaDB password. |
+| `DATABASE` | Name of the MySQL/MariaDB database. |
+| `SQLHOST` | Hostname or IP of the database server. |
+| `SQLPORT` | Port of the database server (default `3306`). |
+| `ADMINS` | Comma-separated Steam IDs to grant admin privileges. |
+| `SUPERADMINS` | Comma-separated Steam IDs to grant super admin privileges. |
+| `REDISURL` | Full Redis connection URL, e.g. `redis://:password@host:6379`. |
+| `REDISTTL` | Redis session TTL in seconds (e.g. `86400` for 24 hours). |
+| `USEREDIS` | Set to `true` to enable Redis-backed sessions. |
+| `UPLOADDEMOS` | Set to `true` to allow demo file uploads. |
+| `LOCALLOGINS` | Set to `true` to enable local username/password logins in addition to Steam OAuth. |
+
+## Port mapping
+
+The `-p 3301:3301` flag maps port `3301` on the host to port `3301` inside the container. The `Dockerfile` uses `EXPOSE 3301` to declare this port. If you need to run the API on a different host port, change the left-hand side only:
+
+```bash
+-p 8080:3301
+```
+
+## Volume mount
+
+The `-v redisVol:/RedisFiles` flag creates a named Docker volume called `redisVol` and mounts it at `/RedisFiles` inside the container. This volume persists any Redis file data across container restarts.
+
+<Note>
+If you are pointing `REDISURL` at an external Redis instance rather than an in-container one, the volume mount is still harmless but effectively unused.
+</Note>
+
+## Startup sequence
+
+When the container starts, the `CMD` in the `Dockerfile` runs the following steps in order:
+
+1. Renders `config/production.json` from `config/production.json.template` using `envsubst`.
+2. Patches the `db:create` command in `package.json` with the `DATABASE` variable value.
+3. Runs `yarn migrate-create-prod` to create the database if it does not exist.
+4. Runs `yarn migrate-prod-upgrade` to apply all pending migrations.
+5. Starts the API via `yarn startprod` (PM2 with `prodrun.json`).
+6. Tails PM2 logs with `yarn pm2 logs`.
+
+## Viewing logs
+
+To stream the container's output:
+
+```bash
+docker container logs g5api
+```
+
+To follow logs in real time:
+
+```bash
+docker container logs -f g5api
+```
+
+<Warning>
+If the container exits immediately after starting, the logs are the first place to look. Common causes are missing required environment variables or an unreachable database host.
+</Warning>

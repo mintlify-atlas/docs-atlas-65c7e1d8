@@ -1,0 +1,124 @@
+---
+title: 'Get user'
+description: 'Retrieve a specific user by database ID or Steam64 ID.'
+---
+
+```
+GET /users/:user_id
+```
+
+Returns a single user record. The `:user_id` parameter accepts either the numeric database `id` or the user's `steam_id`.
+
+The set of fields returned depends on whether you are viewing your own profile (or are a super admin).
+
+## Path parameters
+
+<ParamField path="user_id" type="string" required>
+  The numeric database ID or Steam64 ID of the user to retrieve.
+</ParamField>
+
+## Request
+
+<CodeGroup>
+
+```bash By database ID
+curl http://your-server:3301/users/42 \
+  -b cookies.txt
+```
+
+```bash By Steam ID
+curl http://your-server:3301/users/76561198000000000 \
+  -b cookies.txt
+```
+
+```bash Bearer token
+curl http://your-server:3301/users/42 \
+  -H "Authorization: Bearer 42:ABCDEF1234567890..."
+```
+
+</CodeGroup>
+
+## Response
+
+Returns an object with a `user` field.
+
+<ResponseField name="user" type="object" required>
+  The user record.
+
+  <Expandable title="User object fields">
+    <ResponseField name="id" type="integer">
+      The numeric database ID of the user.
+    </ResponseField>
+    <ResponseField name="steam_id" type="string">
+      The user's Steam64 ID.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Display name sourced from Steam.
+    </ResponseField>
+    <ResponseField name="admin" type="integer">
+      `1` if the user has admin privileges, `0` otherwise.
+    </ResponseField>
+    <ResponseField name="super_admin" type="integer">
+      `1` if the user has super admin privileges, `0` otherwise.
+    </ResponseField>
+    <ResponseField name="small_image" type="string">
+      Akamai Steam CDN URL for the small (32×32) profile avatar.
+    </ResponseField>
+    <ResponseField name="medium_image" type="string">
+      Akamai Steam CDN URL for the medium (64×64) profile avatar.
+    </ResponseField>
+    <ResponseField name="large_image" type="string">
+      Akamai Steam CDN URL for the full-size profile avatar.
+    </ResponseField>
+    <ResponseField name="api_key" type="string">
+      Your API key in `<user_id>:<key>` format. Only returned when you request your own profile or when a super admin requests any profile.
+    </ResponseField>
+    <ResponseField name="challonge_api_key" type="string">
+      Your Challonge API key, decrypted. Only returned on your own profile or to a super admin.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response (own profile)
+
+```json
+{
+  "user": {
+    "id": 42,
+    "steam_id": "76561198000000000",
+    "name": "Alice",
+    "admin": 0,
+    "super_admin": 0,
+    "small_image": "https://avatars.akamai.steamstatic.com/abc_small.jpg",
+    "medium_image": "https://avatars.akamai.steamstatic.com/abc_medium.jpg",
+    "large_image": "https://avatars.akamai.steamstatic.com/abc_full.jpg",
+    "api_key": "42:ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890"
+  }
+}
+```
+
+### Example response (public view)
+
+When viewing another user's profile without super admin access, `api_key` and `challonge_api_key` are omitted:
+
+```json
+{
+  "user": {
+    "id": 7,
+    "steam_id": "76561198000000007",
+    "name": "Bob",
+    "admin": 0,
+    "super_admin": 0,
+    "small_image": "https://avatars.akamai.steamstatic.com/def_small.jpg",
+    "medium_image": "https://avatars.akamai.steamstatic.com/def_medium.jpg",
+    "large_image": "https://avatars.akamai.steamstatic.com/def_full.jpg"
+  }
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `404` | No user found with the given ID or Steam ID. |
+| `500` | Database or server error. |

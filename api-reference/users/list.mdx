@@ -1,0 +1,89 @@
+---
+title: 'List users'
+description: 'Retrieve all registered users.'
+---
+
+```
+GET /users
+```
+
+Returns a list of all users registered in G5API. No authentication is required to call this endpoint, but the fields returned are limited to public profile information.
+
+## Request
+
+```bash
+curl http://your-server:3301/users
+```
+
+To include your session cookie:
+
+```bash
+curl http://your-server:3301/users -b cookies.txt
+```
+
+To use a Bearer token:
+
+```bash
+curl http://your-server:3301/users \
+  -H "Authorization: Bearer 42:ABCDEF1234567890..."
+```
+
+## Response
+
+Returns an object with a `users` array. Each element contains public profile fields.
+
+<ResponseField name="users" type="array" required>
+  Array of user objects.
+
+  <Expandable title="User object fields">
+    <ResponseField name="id" type="integer">
+      The numeric database ID of the user.
+    </ResponseField>
+    <ResponseField name="steam_id" type="string">
+      The user's Steam64 ID.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Display name sourced from Steam.
+    </ResponseField>
+    <ResponseField name="small_image" type="string">
+      Akamai Steam CDN URL for the small (32×32) profile avatar.
+    </ResponseField>
+    <ResponseField name="medium_image" type="string">
+      Akamai Steam CDN URL for the medium (64×64) profile avatar.
+    </ResponseField>
+    <ResponseField name="large_image" type="string">
+      Akamai Steam CDN URL for the full-size profile avatar.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "users": [
+    {
+      "id": 1,
+      "steam_id": "76561198000000001",
+      "name": "Alice",
+      "small_image": "https://avatars.akamai.steamstatic.com/abc_small.jpg",
+      "medium_image": "https://avatars.akamai.steamstatic.com/abc_medium.jpg",
+      "large_image": "https://avatars.akamai.steamstatic.com/abc_full.jpg"
+    },
+    {
+      "id": 2,
+      "steam_id": "76561198000000002",
+      "name": "Bob",
+      "small_image": "https://avatars.akamai.steamstatic.com/def_small.jpg",
+      "medium_image": "https://avatars.akamai.steamstatic.com/def_medium.jpg",
+      "large_image": "https://avatars.akamai.steamstatic.com/def_full.jpg"
+    }
+  ]
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `500` | Database or server error. |

@@ -1,0 +1,174 @@
+---
+title: Docker Compose
+description: Deploy G5API together with G5V, MariaDB, Redis, and an optional Caddy reverse proxy using the provided docker-compose.yml.
+---
+
+## Overview
+
+The repository ships a `docker-compose.yml` that brings up a full stack in one command:
+
+| Service | Image | Purpose |
+|---|---|---|
+| `redis` | `redis:6` | Session store and caching |
+| `get5db` | `yobasystems/alpine-mariadb` | MariaDB database |
+| `caddy` | `lucaslorentz/caddy-docker-proxy:ci-alpine` | Automatic HTTPS reverse proxy |
+| `g5api` | `ghcr.io/phlexplexico/g5api:latest` | G5API backend |
+| `g5v` | `ghcr.io/phlexplexico/g5v:latest` | G5V front-end |
+
+All services share a user-defined bridge network called `get5`.
+
+## Step 1: Create the network bridge
+
+Before running `docker-compose up`, create the external network that all services connect to:
+
+```bash
+docker network create -d bridge get5
+```
+
+This only needs to be done once. The `docker-compose.yml` declares the network as `external: true`, so Compose will not try to create it itself.
+
+## Step 2: Configure environment variables
+
+Open `docker-compose.yml` and fill in every blank environment variable under the `g5api` service. The variables are identical to those used in the standalone Docker run command:
+
+```yaml
+environment:
+  - NODE_ENV=production
+  - PORT=3301
+  - DBKEY=
+  - STEAMAPIKEY=
+  - HOSTNAME=https://localhost
+  - SHAREDSECRET=
+  - CLIENTHOME=https://localhost
+  - APIURL=https://localhost/api
+  - SQLUSER=get5
+  - SQLPASSWORD=
+  - SQLPORT=3306
+  - DATABASE=get5
+  - SQLHOST=get5db
+  - ADMINS=
+  - SUPERADMINS=
+  - REDISURL=redis://:super_secure_password_change_me@redis:6379
+  - REDISTTL=86400
+  - USEREDIS=true
+  - UPLOADDEMOS=true
+  - LOCALLOGINS=false
+```
+
+Also set the database credentials under the `get5db` service:
+
+```yaml
+environment:
+  - MYSQL_ROOT_PASSWORD=
+  - MYSQL_DATABASE=get5
+  - MYSQL_USER=get5
+  - MYSQL_PASSWORD=
+  - MYSQL_CHARSET=utf8mb4
+  - MYSQL_COLLATION=utf8mb4_general_ci
+```
+
+<Warning>
+The `REDISURL` password in `docker-compose.yml` defaults to `super_secure_password_change_me`. Make sure to change it in both the `redis` service command and the `REDISURL` variable so they match.
+</Warning>
+
+## Step 3: Replace localhost references
+
+The `docker-compose.yml` contains several hardcoded `localhost` references that must be updated to your actual hostname or domain before starting the stack.
+
+<Warning>
+Do not skip this step. Leaving `localhost` in place will cause authentication redirects and API calls to fail from any client other than the host machine itself.
+</Warning>
+
+The lines that need to be changed are:
+
+| Line | Field | Example value |
+|---|---|---|
+| 48 | `caddy:` label on `g5api` | `example.com` |
+| 58 | `HOSTNAME` on `g5api` | `https://example.com` |
+| 60 | `CLIENTHOME` on `g5api` | `https://example.com` |
+| 61 | `APIURL` on `g5api` | `https://example.com/api` |
+| 85 | `caddy:` label on `g5v` | `example.com` |
+
+## With Caddy (HTTPS)
+
+Caddy uses Docker labels on the `g5api` and `g5v` services to detect and route traffic automatically. No manual Caddyfile is required.
+
+It is recommended to use a real domain or a dynamic DNS provider such as [DuckDNS](https://www.duckdns.org/) so that Caddy can obtain a TLS certificate via ACME.
+
+<Steps>
+  <Step title="Point your domain to the host">
+    Create an A record (or configure DuckDNS) pointing your domain to the server's public IP address.
+  </Step>
+  <Step title="Replace localhost with your domain">
+    Update lines 48, 58, 60, 61, and 85 in `docker-compose.yml` with your real domain, for example `example.duckdns.org`.
+  </Step>
+  <Step title="Start the stack">
+    ```bash
+    docker-compose up -d
+    ```
+    Caddy will automatically provision a TLS certificate on first startup. Allow a minute or two for the certificate to be issued.
+  </Step>
+  <Step title="Verify">
+    Open `https://your-domain` in a browser. G5V should load and calls to `/api` should reach G5API.
+  </Step>
+</Steps>
+
+## Without Caddy
+
+If you already have a reverse proxy (NGINX, Apache, Traefik, etc.) in front of the host, you can remove Caddy entirely.
+
+<Steps>
+  <Step title="Remove Caddy from the compose file">
+    Delete the entire `caddy:` service block from `docker-compose.yml`.
+  </Step>
+  <Step title="Remove Caddy labels from g5api and g5v">
+    Delete the `labels:` blocks from both the `g5api` and `g5v` services. These are the lines that begin with `caddy`.
+  </Step>
+  <Step title="Update localhost references">
+    Update lines 58, 60, and 61 (`HOSTNAME`, `CLIENTHOME`, `APIURL`) with your actual domain. You still need to set these correctly for Steam OAuth and CORS to work.
+  </Step>
+  <Step title="Start the stack">
+    ```bash
+    docker-compose up -d
+    ```
+  </Step>
+  <Step title="Configure your reverse proxy">
+    Proxy `/api/*` to `http://localhost:3301` (G5API) and `/` to the G5V container. See the [production](/deployment/production) page for an NGINX example.
+  </Step>
+</Steps>
+
+## Starting the stack
+
+```bash
+docker-compose up -d
+```
+
+The `-d` flag runs all containers in the background. The first run will pull any missing images and run the G5API database migrations automatically.
+
+## Checking logs
+
+View logs for a specific service:
+
+<CodeGroup>
+
+```bash g5api logs
+docker container logs G5API
+```
+
+```bash g5v logs
+docker container logs G5V-Front-End
+```
+
+```bash caddy logs
+docker container logs caddy-reverse-proxy
+```
+
+```bash all services
+docker-compose logs -f
+```
+
+</CodeGroup>
+
+<Note>
+If the `g5api` container exits on startup, check its logs first. The most common causes are incorrect database credentials, an unreachable `get5db` container, or unset required environment variables.
+</Note>

@@ -1,0 +1,378 @@
+---
+title: 'Installation'
+description: 'Comprehensive guide to installing and configuring G5API across all environments.'
+---
+
+This guide covers every step of installing G5API, from prerequisites through running in production with pm2, Docker, or Docker Compose.
+
+## Prerequisites
+
+Ensure the following are installed and available before proceeding:
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Node.js | `>=16.17.0` | Specified in `package.json` `engines` field |
+| Yarn | Any stable | Used for all scripts and package management |
+| MariaDB or MySQL | Any recent | G5API uses `db-migrate-mysql` with the `mysql` driver |
+| Redis | 6+ | Optional but recommended; used for session caching |
+| Steam API key | — | Required for Steam OAuth; not needed if using local logins only |
+
+<Note>
+  Redis is optional. If you prefer not to run it, set `"useRedis": false` in your config file and G5API will use in-memory sessions instead.
+</Note>
+
+## Clone and install
+
+```bash
+git clone https://github.com/PhlexPlexico/G5API.git
+cd G5API
+yarn
+```
+
+Yarn installs all production and development dependencies declared in `package.json`, including Express, Passport, db-migrate, Swagger, and TypeScript tooling.
+
+## Configuration
+
+G5API reads its configuration from JSON files in the `config/` directory. The file loaded depends on the `NODE_ENV` environment variable:
+
+| `NODE_ENV` | Config file |
+|------------|-------------|
+| `development` | `config/development.json` |
+| `production` | `config/production.json` |
+| `test` | `config/test.json` |
+
+Templates are provided for each environment. Copy the one you need:
+
+<CodeGroup>
+
+```bash development
+cp config/development.json.template config/development.json
+```
+
+```bash production
+cp config/production.json.template config/production.json
+```
+
+</CodeGroup>
+
+### Configuration keys
+
+All configuration lives under the `server` block. Below is a description of every key, using the development template as the reference:
+
+```json config/development.json
+{
+  "server": {
+    "port": 3301,
+    "hostname": "http://localhost",
+    "dbKey": "Database 16 Byte Key.",
+    "steamAPIKey": "API Key For Steam Calls.",
+    "sharedSecret": "a secure secret for session sigining.",
+    "clientHome": "http://localhost:8080",
+    "useRedis": true,
+    "apiURL": "http://localhost:8080/api/",
+    "uploadDemos": false,
+    "localLoginEnabled": true,
+    "redisUrl": "redis://:super_secure@localhost:6379",
+    "redisTTL": 86400
+  },
+  "development": {
+    "driver": "mysql",
+    "user": "get5_user",
+    "password": "",
+    "database": "get5dev",
+    "multipleStatements": true,
+    "flags": { "ENV": "MYSQL_FLAGS" },
+    "host": "127.0.0.1",
+    "port": 3306,
+    "connectionLimit": 15
+  },
+  "admins": {
+    "steam_ids": "admins,go,here"
+  },
+  "super_admins": {
+    "steam_ids": "super_admins,go,here"
+  }
+}
+```
+
+#### `server` block
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `port` | number | Port the HTTP server listens on. Default: `3301`. |
+| `hostname` | string | Public base URL of this G5API instance (e.g. `https://api.example.com`). |
+| `dbKey` | string | 16-byte key used to AES-encrypt sensitive database fields. |
+| `steamAPIKey` | string | Steam Web API key, used for player lookups and OAuth. |
+| `sharedSecret` | string | Secret used to sign session cookies. Use a long, random value. |
+| `clientHome` | string | Base URL of the front-end application (e.g. G5V). Used for OAuth redirects. |
+| `useRedis` | boolean | When `true`, sessions are stored in Redis. When `false`, in-memory sessions are used. |
+| `apiURL` | string | Full URL prefix for API callbacks sent from the CS2 server plugin. |
+| `uploadDemos` | boolean | When `true`, the API accepts demo file uploads from the game server. |
+| `localLoginEnabled` | boolean | When `true`, username/password logins are accepted in addition to Steam OAuth. |
+| `redisUrl` | string | Redis connection URL, including password if set (e.g. `redis://:password@host:6379`). |
+| `redisTTL` | number | Session time-to-live in Redis, in seconds. Default: `86400` (24 hours). |
+
+#### Database block
+
+The database block key matches the environment name (`development`, `production`, or `test`):
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `driver` | string | Always `"mysql"` — uses the `db-migrate-mysql` adapter. |
+| `user` | string | Database username. |
+| `password` | string | Database password. |
+| `database` | string | Database name (`get5dev` for development, `get5` for production). |
+| `host` | string | Database host (e.g. `127.0.0.1` or a container hostname). |
+| `port` | number | Database port. Default: `3306`. |
+| `connectionLimit` | number | Maximum concurrent database connections in the pool. Default: `15`. |
+| `multipleStatements` | boolean | Allows multi-statement queries. Required for migrations. |
+
+#### `admins` and `super_admins` blocks
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `steam_ids` | string | Comma-separated list of Steam IDs granted admin or super admin privileges. |
+
+<Warning>
+  Super admins have full control over the API, including user management and server configuration. Keep this list minimal and store the config file securely.
+</Warning>
+
+## Database setup
+
+G5API uses `db-migrate` to manage schema migrations. Run the appropriate commands for your environment.
+
+<CodeGroup>
+
+```bash development
+# Create the database and apply all migrations
+yarn migrate-create-dev && yarn migrate-dev-upgrade
+```
+
+```bash production
+# Create the database and apply all migrations
+yarn migrate-create-prod && yarn migrate-prod-upgrade
+```
+
+</CodeGroup>
+
+<Warning>
+  `migrate-create-dev` and `migrate-create-prod` drop and recreate the target database before running migrations. Never run these commands against a database with data you need to retain. To apply only new migrations to an existing database, run `yarn migrate-dev-upgrade` or `yarn migrate-prod-upgrade` without the create step.
+</Warning>
+
+If you are on Windows, the `MYSQL_FLAGS` environment variable trick used by the create scripts may not work. In that case, create the database manually in your MySQL/MariaDB client, then run only the upgrade step:
+
+```bash
+yarn migrate-prod-upgrade
+```
+
+## Running in development
+
+```bash
+yarn start
+```
+
+This runs `tsc-watch`, which compiles TypeScript incrementally and restarts the server via `nodemon` on each successful build. The output is placed in `./dist/`. The server defaults to `NODE_ENV=development`, loading `config/development.json`.
+
+Alternatively, to do a single build and start without file watching:
+
+```bash
+yarn tsstart
+```
+
+## Running in production
+
+Production deployments use pm2 for process management, configured by `prodrun.json` in the project root.
+
+<Steps>
+  <Step title="Copy and fill in the production config">
+    ```bash
+    cp config/production.json.template config/production.json
+    ```
+
+    Fill in all values. The production template uses environment variable placeholders (`$PORT`, `$STEAMAPIKEY`, etc.) that are expanded at runtime when using Docker. For a direct pm2 deployment, replace each placeholder with a literal value.
+
+    ```json config/production.json
+    {
+      "server": {
+        "port": 3301,
+        "hostname": "https://api.example.com",
+        "dbKey": "<16-byte key>",
+        "steamAPIKey": "<your Steam API key>",
+        "sharedSecret": "<long random secret>",
+        "clientHome": "https://example.com",
+        "useRedis": true,
+        "apiURL": "https://api.example.com/api/",
+        "uploadDemos": true,
+        "localLoginEnabled": false,
+        "redisUrl": "redis://:password@localhost:6379",
+        "redisTTL": 86400
+      },
+      "production": {
+        "driver": "mysql",
+        "user": "get5",
+        "password": "<db password>",
+        "database": "get5",
+        "multipleStatements": true,
+        "flags": { "ENV": "MYSQL_FLAGS" },
+        "host": "127.0.0.1",
+        "port": 3306,
+        "connectionLimit": 15
+      },
+      "admins": { "steam_ids": "" },
+      "super_admins": { "steam_ids": "<your Steam ID>" }
+    }
+    ```
+  </Step>
+
+  <Step title="Run production migrations">
+    ```bash
+    yarn migrate-create-prod && yarn migrate-prod-upgrade
+    ```
+  </Step>
+
+  <Step title="Build and start with pm2">
+    ```bash
+    yarn startprod
+    ```
+
+    This runs `pm2 start ./prodrun.json --name "G5API"`. pm2 keeps the process alive and restarts it on crash.
+
+    Other pm2 lifecycle commands:
+
+    ```bash
+    # Restart the running process
+    yarn restartprod
+
+    # Stop and remove from pm2 process list
+    yarn stopprod
+    ```
+  </Step>
+</Steps>
+
+## Docker
+
+The provided `Dockerfile` builds from `node:18-alpine`, installs dependencies, compiles TypeScript, and uses `envsubst` to render `config/production.json` from environment variables at container startup.
+
+```bash
+# Build the image
+docker build -t yourname/g5api:latest .
+
+# Run the container
+docker container run --name g5api \
+  -p 3301:3301 \
+  -v redisVol:/RedisFiles \
+  -e PORT="3301" \
+  -e HOSTNAME="" \
+  -e DBKEY="" \
+  -e STEAMAPIKEY="" \
+  -e SHAREDSECRET="" \
+  -e CLIENTHOME="" \
+  -e APIURL="" \
+  -e SQLUSER="" \
+  -e SQLPASSWORD="" \
+  -e DATABASE="" \
+  -e SQLHOST="" \
+  -e SQLPORT="" \
+  -e ADMINS="" \
+  -e SUPERADMINS="" \
+  -e REDISURL="" \
+  -e REDISTTL="" \
+  -e USEREDIS="true" \
+  -e UPLOADDEMOS="" \
+  -e LOCALLOGINS="" \
+  yourname/g5api:latest
+```
+
+Each `-e` flag corresponds to a placeholder in `config/production.json.template`. The container entry point renders the template, creates the production database, runs migrations, then starts G5API under pm2.
+
+## Docker Compose
+
+The repository ships with a `docker-compose.yml` that wires together Redis, MariaDB (`get5db`), a Caddy reverse proxy, G5API, and the G5V front-end.
+
+<Steps>
+  <Step title="Create the Docker network">
+    ```bash
+    docker network create -d bridge get5
+    ```
+  </Step>
+
+  <Step title="Fill in environment values">
+    Open `docker-compose.yml` and fill in the empty values under the `g5api` service:
+
+    ```yaml
+    environment:
+      - NODE_ENV=production
+      - PORT=3301
+      - DBKEY=
+      - STEAMAPIKEY=
+      - HOSTNAME=https://localhost
+      - SHAREDSECRET=
+      - CLIENTHOME=https://localhost
+      - APIURL=https://localhost/api
+      - SQLUSER=get5
+      - SQLPASSWORD=
+      - SQLPORT=3306
+      - DATABASE=get5
+      - SQLHOST=get5db
+      - ADMINS=
+      - SUPERADMINS=
+      - REDISURL=redis://:super_secure_password_change_me@redis:6379
+      - REDISTTL=86400
+      - USEREDIS=true
+      - UPLOADDEMOS=true
+      - LOCALLOGINS=false
+    ```
+
+    Also update the MariaDB credentials under `get5db`:
+
+    ```yaml
+    environment:
+      - MYSQL_ROOT_PASSWORD=
+      - MYSQL_DATABASE=get5
+      - MYSQL_USER=get5
+      - MYSQL_PASSWORD=
+    ```
+
+    If you are using Caddy with a real domain instead of `localhost`, change the `caddy:` label values on the `g5api` and `g5v` services (lines 48, 54, 56, 57, and 80 in the stock file).
+  </Step>
+
+  <Step title="Start the stack">
+    ```bash
+    docker-compose up -d
+    ```
+
+    After a few minutes of setup the stack will be accessible. To check G5API logs:
+
+    ```bash
+    docker container logs g5api
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  If you already have NGINX, Apache, or another reverse proxy handling HTTPS, remove the `caddy` service and all `caddy.*` labels from `docker-compose.yml` before starting the stack.
+</Tip>
+
+## Running tests
+
+Tests use Jest and require a `config/test.json` file. The full test suite creates a temporary `get5test` database, mocks Steam OAuth, and exercises all route groups.
+
+```bash
+yarn test
+```
+
+This runs a build, sets up the test user from `utility/mockProfile.js`, drops and recreates the `get5test` database, applies migrations, and then runs all test suites in sequence: users, game servers, teams, matches, seasons, vetoes, map stats, player stats, veto sides, and map lists.
+
+<Note>
+  Tests are primarily designed for CI. The mock Steam profile in `utility/mockProfile.js` is temporarily elevated to super admin during the run and restored afterward.
+</Note>
+
+## Building documentation
+
+```bash
+yarn doc
+```
+
+This compiles TypeScript and then runs `jsdoc` with the project's `jsdoc.conf.json` configuration, generating HTML documentation in the `./docs/` directory. All TypeScript functions are included.
+
+The Swagger UI is always available at `/api-docs` when the server is running and provides interactive API documentation without any separate build step.

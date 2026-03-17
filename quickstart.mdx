@@ -1,80 +1,146 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get a G5API instance running locally in minutes.'
 ---
 
-## Get started in three steps
+This guide walks you through cloning G5API, configuring it, running database migrations, and verifying the server is up — the fastest path to a working instance.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure the following are available on your machine:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- **Node.js** `>=16.17.0` — required by the `engines` field in `package.json`
+- **MariaDB or MySQL** — G5API uses `db-migrate-mysql` and requires a compatible database server
+- **Yarn** — used for all package and script management
+- **Redis** *(optional)* — enables session caching; set `useRedis: false` in config to skip it
+- **A Steam API key** — required for Steam OAuth authentication; obtain one at the Steam developer portal
 
-### Step 2: Deploy your changes
+## Get running
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/PhlexPlexico/G5API.git
+    cd G5API
+    ```
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Install dependencies">
+    ```bash
+    yarn
+    ```
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Copy the config template">
+    Copy the development config template and open it for editing:
 
-### Step 3: Go live
+    ```bash
+    cp config/development.json.template config/development.json
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    Then fill in the required values. The template ships with sensible defaults for local development:
 
-## Next steps
+    ```json config/development.json
+    {
+      "server": {
+        "port": 3301,
+        "hostname": "http://localhost",
+        "dbKey": "Database 16 Byte Key.",
+        "steamAPIKey": "API Key For Steam Calls.",
+        "sharedSecret": "a secure secret for session sigining.",
+        "clientHome": "http://localhost:8080",
+        "useRedis": true,
+        "apiURL": "http://localhost:8080/api/",
+        "uploadDemos": false,
+        "localLoginEnabled": true,
+        "redisUrl": "redis://:super_secure@localhost:6379",
+        "redisTTL": 86400
+      },
+      "development": {
+        "driver": "mysql",
+        "user": "get5_user",
+        "password": "",
+        "database": "get5dev",
+        "multipleStatements": true,
+        "flags": { "ENV": "MYSQL_FLAGS" },
+        "host": "127.0.0.1",
+        "port": 3306,
+        "connectionLimit": 15
+      },
+      "admins": {
+        "steam_ids": "admins,go,here"
+      },
+      "super_admins": {
+        "steam_ids": "super_admins,go,here"
+      }
+    }
+    ```
 
-Now that you have your docs running, explore these key features:
+    At minimum, replace these values:
+
+    | Key | Description |
+    |-----|-------------|
+    | `steamAPIKey` | Your Steam Web API key |
+    | `dbKey` | A 16-byte AES encryption key for the database |
+    | `sharedSecret` | A secret string used to sign sessions |
+    | `development.user` / `development.password` | Credentials for your MariaDB/MySQL user |
+    | `super_admins.steam_ids` | Comma-separated Steam IDs that get super admin access |
+
+    <Note>
+      If you are not running Redis locally, set `"useRedis": false`. The server will fall back to in-memory sessions.
+    </Note>
+  </Step>
+
+  <Step title="Run database migrations">
+    Create the development database and apply all migrations:
+
+    ```bash
+    yarn migrate-create-dev && yarn migrate-dev-upgrade
+    ```
+
+    <Warning>
+      `migrate-create-dev` drops and recreates the `get5dev` database. Do not run this against a database that contains data you want to keep.
+    </Warning>
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    yarn start
+    ```
+
+    This compiles TypeScript with `tsc-watch` and starts the server via `nodemon`. The server listens on port `3301` by default.
+
+    <Tip>
+      The `NODE_ENV` variable controls which config file is loaded. The `yarn start` script defaults to `development`, so `config/development.json` is used.
+    </Tip>
+  </Step>
+
+  <Step title="Verify the server is running">
+    Open a second terminal and run:
+
+    ```bash
+    curl http://localhost:3301/isloggedin
+    ```
+
+    You should receive a JSON response indicating the login status. A `401` or similar structured JSON response (rather than a connection error) confirms the server is up and handling requests.
+  </Step>
+</Steps>
+
+## Explore the API
+
+G5API ships with a Swagger UI that documents every endpoint. Once the server is running, open your browser and navigate to:
+
+```
+http://localhost:3301/api-docs
+```
+
+This interactive UI lets you browse all available routes, inspect request/response schemas, and make test calls directly from the browser.
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Full installation guide" icon="wrench" href="/installation">
+    Covers all environments — development, production with pm2, Docker, and Docker Compose.
+  </Card>
+  <Card title="API reference" icon="code" href="/api-reference">
+    Full reference for all G5API endpoints, organized by resource.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

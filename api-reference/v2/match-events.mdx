@@ -1,0 +1,355 @@
+---
+title: "Match Events"
+description: "POST /v2 — the main callback endpoint that receives all Get5/MatchZy match events from the game server."
+---
+
+All game server events are delivered to a single endpoint: `POST /v2`. The `event` field in the request body identifies the event type, and G5API dispatches it to the appropriate handler.
+
+## POST /v2
+
+**Headers**
+
+<ParamField header="Authorization" type="string" required>
+  The match API key. Must match the `api_key` stored in the `match` table for the given match ID.
+</ParamField>
+
+<ParamField header="Content-Type" type="string" required>
+  Must be `application/json`.
+</ParamField>
+
+**Shared base fields** (present in every event)
+
+<ParamField body="event" type="string" required>
+  Event name. See the tables below for valid values.
+</ParamField>
+
+<ParamField body="matchid" type="string">
+  String representation of the match ID. If omitted, G5API looks up the match by the `Authorization` key.
+</ParamField>
+
+---
+
+## Series Flow Events
+
+### `going_live`
+
+Fired when a map starts and the match goes live.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "going_live",
+    "matchid": "42",
+    "map_number": 0
+  }'
+```
+
+<ParamField body="map_number" type="integer" required>
+  Zero-indexed map number in the series.
+</ParamField>
+
+**What G5API does:** Sets the match start time and marks the current map as live.
+
+---
+
+### `map_picked`
+
+Fired when a team picks a map during the veto process.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "map_picked",
+    "matchid": "42",
+    "team": "team1",
+    "map_name": "de_dust2",
+    "map_number": 0
+  }'
+```
+
+<ParamField body="team" type="string" required>
+  Which team picked: `"team1"` or `"team2"`.
+</ParamField>
+
+<ParamField body="map_name" type="string" required>
+  The map that was picked (e.g. `de_dust2`).
+</ParamField>
+
+<ParamField body="map_number" type="integer" required>
+  The map's position in the series (zero-indexed).
+</ParamField>
+
+**What G5API does:** Inserts a veto record with `pick_or_veto = 'pick'`.
+
+---
+
+### `map_vetoed`
+
+Fired when a team bans a map during the veto process.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "map_vetoed",
+    "matchid": "42",
+    "team": "team1",
+    "map_name": "de_mirage"
+  }'
+```
+
+<ParamField body="team" type="string" required>
+  Which team banned: `"team1"` or `"team2"`.
+</ParamField>
+
+<ParamField body="map_name" type="string" required>
+  The map that was banned.
+</ParamField>
+
+**What G5API does:** Inserts a veto record with `pick_or_veto = 'ban'`.
+
+---
+
+### `side_picked`
+
+Fired when a team selects their starting side for a picked map.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "side_picked",
+    "matchid": "42",
+    "team": "team2",
+    "map_name": "de_dust2",
+    "side": "ct",
+    "map_number": 0
+  }'
+```
+
+<ParamField body="team" type="string" required>
+  Which team made the side choice.
+</ParamField>
+
+<ParamField body="map_name" type="string" required>
+  The map this side selection applies to.
+</ParamField>
+
+<ParamField body="side" type="string" required>
+  Starting side: `"ct"` or `"t"`.
+</ParamField>
+
+<ParamField body="map_number" type="integer" required>
+  Zero-indexed map number.
+</ParamField>
+
+**What G5API does:** Inserts a veto side record linking back to the corresponding pick.
+
+---
+
+### `round_end`
+
+Fired at the conclusion of each round.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "round_end",
+    "matchid": "42",
+    "map_number": 0,
+    "round_number": 14,
+    "round_time": 115000,
+    "reason": 7,
+    "winner": { "side": "t", "team": "team1" },
+    "team1": {
+      "id": "team1",
+      "name": "Team Alpha",
+      "series_score": 0,
+      "score": 8,
+      "score_ct": 5,
+      "score_t": 3,
+      "side": "t",
+      "starting_side": "ct",
+      "players": []
+    },
+    "team2": {
+      "id": "team2",
+      "name": "Team Bravo",
+      "series_score": 0,
+      "score": 6,
+      "score_ct": 4,
+      "score_t": 2,
+      "side": "ct",
+      "starting_side": "t",
+      "players": []
+    }
+  }'
+```
+
+<ParamField body="map_number" type="integer" required>Map number (zero-indexed).</ParamField>
+<ParamField body="round_number" type="integer" required>Round number (zero-indexed).</ParamField>
+<ParamField body="round_time" type="integer" required>Duration of the round in milliseconds.</ParamField>
+<ParamField body="reason" type="integer" required>Round end reason code from CS2.</ParamField>
+<ParamField body="winner" type="object" required>
+  <Expandable title="Winner object">
+    <ParamField body="side" type="string">Winning side: `"ct"` or `"t"`.</ParamField>
+    <ParamField body="team" type="string">Winning team identifier: `"team1"` or `"team2"`.</ParamField>
+  </Expandable>
+</ParamField>
+<ParamField body="team1" type="object" required>
+  Team 1 state. See Team object below.
+</ParamField>
+<ParamField body="team2" type="object" required>
+  Team 2 state. See Team object below.
+</ParamField>
+
+<Expandable title="Team object fields">
+  <ParamField body="id" type="string">Team identifier (`"team1"` or `"team2"`).</ParamField>
+  <ParamField body="name" type="string">Team display name.</ParamField>
+  <ParamField body="series_score" type="integer">Maps won in the series so far.</ParamField>
+  <ParamField body="score" type="integer">Total rounds won on this map.</ParamField>
+  <ParamField body="score_ct" type="integer">Rounds won as CT.</ParamField>
+  <ParamField body="score_t" type="integer">Rounds won as T.</ParamField>
+  <ParamField body="side" type="string">Current side: `"ct"` or `"t"`.</ParamField>
+  <ParamField body="starting_side" type="string">The side the team started on.</ParamField>
+  <ParamField body="players" type="array">Array of player objects with current stats.</ParamField>
+</Expandable>
+
+**What G5API does:** Updates map scores and processes player stats from the team player arrays.
+
+---
+
+### `map_result`
+
+Fired when a map concludes.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "map_result",
+    "matchid": "42",
+    "map_number": 0,
+    "winner": { "side": "ct", "team": "team1" },
+    "team1": { "id": "team1", "name": "Team Alpha", "series_score": 1, "score": 16, "score_ct": 9, "score_t": 7, "side": "ct", "starting_side": "ct", "players": [] },
+    "team2": { "id": "team2", "name": "Team Bravo", "series_score": 0, "score": 10, "score_ct": 4, "score_t": 6, "side": "t", "starting_side": "t", "players": [] }
+  }'
+```
+
+**What G5API does:** Records the map winner, sets `map_stats.end_time`, and updates player stats.
+
+---
+
+### `series_end`
+
+Fired when the entire match series concludes.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "series_end",
+    "matchid": "42",
+    "team1_series_score": 2,
+    "team2_series_score": 1,
+    "winner": { "side": "", "team": "team1" },
+    "time_until_restore": 30
+  }'
+```
+
+<ParamField body="team1_series_score" type="integer" required>Maps won by team 1.</ParamField>
+<ParamField body="team2_series_score" type="integer" required>Maps won by team 2.</ParamField>
+<ParamField body="winner" type="object" required>Winner object with `team` field.</ParamField>
+<ParamField body="time_until_restore" type="integer">Seconds until the server restores the original map/config.</ParamField>
+
+**What G5API does:** Sets `match.end_time`, records the series winner, and marks the match as finalized. After this point the match API key is invalidated.
+
+<Note>
+  If the match was already finalized (e.g. cancelled), `series_end` returns `200` silently instead of `401`. This prevents duplicate error noise from the game server.
+</Note>
+
+---
+
+### `player_death`
+
+Fired on each player death. G5API uses this to populate the `player_stat_extras` table.
+
+```bash
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: abc123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": "player_death",
+    "matchid": "42",
+    "map_number": 0,
+    "round_number": 5,
+    "round_time": 42000,
+    "player": {
+      "steamid": "76561198012345678",
+      "name": "playerOne",
+      "side": "ct",
+      "is_bot": false
+    },
+    "weapon": { "name": "weapon_ak47", "paint_kit": 0, "type": "Rifle", "stattrak": false, "silencer_on": false },
+    "bomb": false,
+    "headshot": true,
+    "thru_smoke": false,
+    "penetrated": false,
+    "attacker_blind": false,
+    "no_scope": false,
+    "suicide": false,
+    "friendly_fire": false,
+    "attacker": {
+      "steamid": "76561198087654321",
+      "name": "playerTwo",
+      "user_id": 2,
+      "side": "t",
+      "is_bot": false
+    },
+    "assist": {
+      "player": null,
+      "friendly_fire": false,
+      "flash_assist": false
+    }
+  }'
+```
+
+**What G5API does:** Inserts a row into `player_stat_extras` with all death event details.
+
+---
+
+### `backup_loaded`
+
+Fired when a round backup is restored.
+
+```json
+{
+  "event": "backup_loaded",
+  "matchid": "42",
+  "map_number": 0,
+  "round_number": 12,
+  "filename": "get5_backup_match42_map0_round12.cfg"
+}
+```
+
+**What G5API does:** Rolls back `map_stats` scores to the state at the given round.
+
+---
+
+## Response Codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Event processed successfully. |
+| `202` | Event is not implemented; ignored. |
+| `401` | Missing, invalid, or expired API key. |

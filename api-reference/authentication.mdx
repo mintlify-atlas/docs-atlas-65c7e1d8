@@ -1,0 +1,136 @@
+---
+title: 'Authentication'
+description: 'How to authenticate with G5API using Steam OAuth, local login, or a Bearer token.'
+---
+
+G5API supports three authentication methods: Steam OAuth (session-based), local username/password login (session-based), and Bearer token / API key (stateless).
+
+## Steam OAuth
+
+Steam is the primary authentication method. Redirect users to the Steam login page and G5API handles the callback.
+
+<Steps>
+  <Step title="Redirect to Steam">
+    Send the user to the Steam authentication endpoint:
+
+    ```
+    GET /auth/steam
+    ```
+  </Step>
+  <Step title="Steam returns to G5API">
+    Steam redirects to `/auth/steam/return`. G5API validates the response and creates or updates the user record.
+  </Step>
+  <Step title="Session cookie is set">
+    On success, G5API sets a session cookie named `G5API` (24-hour expiry). All subsequent requests from the browser carry this cookie automatically.
+
+    G5API redirects the browser to the `clientHome` URL defined in your server config.
+  </Step>
+</Steps>
+
+**Log out** by calling `GET /logout`. The session is destroyed and the browser is redirected to `/`.
+
+## Local login
+
+Local username/password login is available when `server.localLoginEnabled` is `true` in your config.
+
+### Register
+
+```bash
+curl -X POST http://your-server:3301/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "s3cr3t", "steam_id": "76561198000000000"}'
+```
+
+```json
+{ "message": "Success!" }
+```
+
+### Log in
+
+```bash
+curl -X POST http://your-server:3301/login \
+  -H "Content-Type: application/json" \
+  -c cookies.txt \
+  -d '{"username": "alice", "password": "s3cr3t"}'
+```
+
+```json
+{ "message": "Success!" }
+```
+
+The `-c cookies.txt` flag saves the `G5API` session cookie for subsequent requests. Pass `-b cookies.txt` on later requests to reuse it.
+
+<Note>
+  If local logins are disabled on the server, the response will be `{ "message": "Sorry, local logins are disabled for this instance." }`.
+</Note>
+
+## Bearer token / API key
+
+For server-to-server or scripted access, use your API key as a Bearer token. No session cookie is needed.
+
+The token format is:
+
+```
+<user_id>:<api_key>
+```
+
+Send it in the `Authorization` header:
+
+```bash
+curl http://your-server:3301/users \
+  -H "Authorization: Bearer 42:ABCDEF1234567890..."
+```
+
+### Getting your API key
+
+Fetch your own user record while authenticated. The `api_key` field contains your key in the `<user_id>:<key>` format:
+
+```bash
+curl http://your-server:3301/users/42 \
+  -b cookies.txt
+```
+
+```json
+{
+  "user": {
+    "id": 42,
+    "steam_id": "76561198000000000",
+    "name": "Alice",
+    "api_key": "42:ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890"
+  }
+}
+```
+
+### Rotating your API key
+
+Request a new API key by updating your user record with `new_api: 1`. See [Update user](/api-reference/users/update).
+
+## Checking login status
+
+`GET /isloggedin` returns your session user object if you are authenticated, or `false` if you are not.
+
+```bash
+curl http://your-server:3301/isloggedin -b cookies.txt
+```
+
+**Authenticated response:**
+
+```json
+{
+  "id": 42,
+  "steam_id": "76561198000000000",
+  "name": "Alice",
+  "admin": 0,
+  "super_admin": 1,
+  "small_image": "https://avatars.akamai.steamstatic.com/abc_small.jpg",
+  "medium_image": "https://avatars.akamai.steamstatic.com/abc_medium.jpg",
+  "large_image": "https://avatars.akamai.steamstatic.com/abc_full.jpg",
+  "api_key": "42:ABCDEF..."
+}
+```
+
+**Unauthenticated response:**
+
+```json
+false
+```

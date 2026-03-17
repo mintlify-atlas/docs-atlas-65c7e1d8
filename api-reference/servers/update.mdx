@@ -1,0 +1,96 @@
+---
+title: 'Update server'
+description: 'Update connection details or settings for an existing game server.'
+---
+
+`PUT /servers`
+
+Updates an existing game server record. Only the server owner or a super admin can update a server. After saving, G5API attempts to connect via RCON to verify the server is still reachable. If it does not respond, the update is still committed.
+
+<Warning>
+  Authentication is required. Only the server owner or a super admin can update a server.
+</Warning>
+
+## Request body
+
+The request body must be a JSON array with a single update object at index `0`. Only include fields you want to change — `null` values are excluded from the update.
+
+<ParamField body="server_id" type="integer" required>
+  The ID of the server to update.
+</ParamField>
+
+<ParamField body="ip_string" type="string">
+  Updated IP address or hostname.
+</ParamField>
+
+<ParamField body="port" type="integer">
+  Updated game server port.
+</ParamField>
+
+<ParamField body="rcon_password" type="string">
+  Updated RCON password. Will be encrypted before storage.
+</ParamField>
+
+<ParamField body="display_name" type="string">
+  Updated human-readable server label.
+</ParamField>
+
+<ParamField body="public_server" type="integer">
+  `1` for public, `0` for private.
+</ParamField>
+
+<ParamField body="user_id" type="integer">
+  Reassign the server to a different owner (super admin only).
+</ParamField>
+
+<ParamField body="flag" type="string">
+  Updated two-letter country code for the server region.
+</ParamField>
+
+<ParamField body="gotv_port" type="integer">
+  Updated GOTV spectator port.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Game server updated successfully!"` if the server responded to RCON after update, or `"Game Server did not respond in time. However, we have still updated the server successfully."` if it did not.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request PUT \
+  --url https://your-g5api-host.com/servers \
+  --header 'Content-Type: application/json' \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE' \
+  --data '[
+    {
+      "server_id": 5,
+      "display_name": "EU Match Server 1 (updated)",
+      "port": 27016,
+      "public_server": 0
+    }
+  ]'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "message": "Game server updated successfully!"
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `400`  | Bad request — missing or malformed fields. |
+| `403`  | User is not the server owner or a super admin. |
+| `404`  | Server does not exist. |
+| `412`  | No update data was provided. |
+| `500`  | Internal server error. |

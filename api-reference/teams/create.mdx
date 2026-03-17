@@ -1,0 +1,108 @@
+---
+title: 'Create team'
+description: 'Create a new team with roster authentication data and an optional logo.'
+---
+
+`POST /teams`
+
+Creates a new team owned by the authenticated user. You can supply a roster of up to any number of players via Steam IDs, designate captains and coaches, and upload a base64-encoded PNG or SVG logo.
+
+<Warning>
+  Authentication is required. You must be logged in to create a team.
+</Warning>
+
+## Request body
+
+The request body must be a JSON array with a single team object at index `0`.
+
+<ParamField body="name" type="string" required>
+  Display name of the team.
+</ParamField>
+
+<ParamField body="flag" type="string">
+  Two-letter country code for the in-game flag (e.g. `US`, `DE`, `UA`). See the [Steam flag workshop item](https://steamcommunity.com/sharedfiles/filedetails/?id=719079703).
+</ParamField>
+
+<ParamField body="logo_file" type="string">
+  Base64-encoded PNG or SVG image. PNGs should be prefixed with `data:image/png;base64,`. SVGs should be prefixed with `data:image/svg+xml;base64,`. The logo is saved to disk and the generated filename is stored in the database.
+</ParamField>
+
+<ParamField body="tag" type="string">
+  Short abbreviation or tag for the team (e.g. `NaVi`, `FaZe`).
+</ParamField>
+
+<ParamField body="public_team" type="integer">
+  Set to `1` to make the team usable by all users, or `0` for private. Defaults to `0`.
+</ParamField>
+
+<ParamField body="auth_name" type="object">
+  Object mapping Steam IDs (as keys) to player auth objects. Each key is a 64-bit Steam ID string.
+  <Expandable title="auth object properties">
+    <ResponseField name="name" type="string">
+      Player display name. Leave empty to use the player's Steam username automatically.
+    </ResponseField>
+    <ResponseField name="captain" type="boolean">
+      Set to `true` or `1` to designate this player as team captain.
+    </ResponseField>
+    <ResponseField name="coach" type="boolean">
+      Set to `true` or `1` to designate this player as team coach.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"Team successfully inserted."`
+</ResponseField>
+
+<ResponseField name="id" type="integer">
+  The newly created team ID.
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://your-g5api-host.com/teams \
+  --header 'Content-Type: application/json' \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE' \
+  --data '[
+    {
+      "name": "Natus Vincere",
+      "flag": "UA",
+      "tag": "NaVi",
+      "public_team": 1,
+      "auth_name": {
+        "76561198012345678": {
+          "name": "s1mple",
+          "captain": 1,
+          "coach": 0
+        },
+        "76561198087654321": {
+          "name": "b1t",
+          "captain": 0,
+          "coach": 0
+        }
+      }
+    }
+  ]'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "message": "Team successfully inserted.",
+  "id": 12
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `500`  | Internal server error. |

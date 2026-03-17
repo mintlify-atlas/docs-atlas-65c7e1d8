@@ -1,0 +1,104 @@
+---
+title: "Plugin Callbacks Overview"
+description: "How the CS2 game server plugin communicates match events back to G5API via the v2 callback API."
+---
+
+The `/v2` API routes are **not** called by end-users or admin clients. They are called automatically by the CS2 game server plugin ([MatchZy](https://github.com/shobhit-pathak/MatchZy) or [PugSharp](https://github.com/lan2play-weblate/PugSharp)) as the match progresses. G5API receives these callbacks and updates match state, records statistics, and triggers real-time SSE events.
+
+## How it works
+
+```
+CS2 Game Server
+  └─ MatchZy / PugSharp plugin
+        └─ POST /v2          (match events: kills, round results, veto, etc.)
+        └─ POST /v2/demo     (demo file upload after map ends)
+        └─ POST /v2/backup   (round backup file upload during map)
+```
+
+Every request to the v2 API must carry the match's API key in the `Authorization` header. This key is generated when the match is created and stored in the `match.api_key` database column.
+
+## Authentication
+
+<Note>
+  The `Authorization` header value is the raw API key string — it is **not** a Bearer token and should not be prefixed with `Bearer `.
+</Note>
+
+All v2 routes verify the key against the `match` table before processing any event. A missing or incorrect key returns `401`.
+
+```bash
+# Example: manually sending a test event
+curl -X POST https://your-g5api.example.com/v2 \
+  -H "Authorization: <match-api-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"event": "going_live", "matchid": "42", "map_number": 0}'
+```
+
+## Route Summary
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/v2` | Receive all match event callbacks |
+| POST | `/v2/demo` | Upload a demo file (`.dem` → compressed `.zip`) |
+| GET | `/v2/demo/:match_id/:map_number` | Download a stored demo |
+| POST | `/v2/backup` | Upload a round backup `.cfg` file |
+| GET | `/v2/backup/:match_id` | List backups for a match |
+| GET | `/v2/backup/:match_id/:round_number` | Download a specific backup |
+
+## Supported Events
+
+All events are delivered to `POST /v2`. The `event` field in the JSON body determines which handler is invoked.
+
+### Series Flow Events
+
+| Event | Triggered when |
+|-------|----------------|
+| `map_picked` | A team picks a map during the veto |
+| `map_vetoed` | A team bans a map during the veto |
+| `side_picked` | A team selects a starting side for a map |
+| `backup_loaded` | A round backup is restored |
+| `map_result` | A map finishes with a result |
+| `series_end` | The entire match series concludes |
+
+### Map Flow Events
+
+| Event | Triggered when |
+|-------|----------------|
+| `going_live` | A map starts (knife round complete, sides chosen) |
+| `round_start` | A round begins |
+| `round_end` | A round ends |
+| `player_death` | A player is killed |
+| `bomb_planted` | The bomb is planted |
+| `bomb_defused` | The bomb is defused |
+| `game_paused` | The match is paused |
+| `game_unpaused` | The match is unpaused |
+
+### Ignored Events
+
+| Event | Behaviour |
+|-------|----------|
+| `demo_upload_ended` | Acknowledged with `200` and ignored (demo is uploaded separately via `POST /v2/demo`) |
+| Any unrecognised event | Returns `202` with message `"Event <name> is not implemented."` |
+
+## Rate Limiting
+
+The `/v2` event endpoint applies a rate limit of **30,000 requests per 30 minutes** keyed on the match API key (falling back to client IP if the key cannot be resolved). This is intentionally high to accommodate busy matches with frequent `player_death` events.
+
+## Plugin Configuration
+
+To point MatchZy or PugSharp at your G5API instance, set the following plugin convars on the game server:
+
+```
+// MatchZy example
+matchzy_remote_log_url "https://your-g5api.example.com/v2"
+matchzy_remote_log_header_key "Authorization"
+matchzy_remote_log_header_value "<match-api-key>"
+
+matchzy_demo_upload_url "https://your-g5api.example.com/v2/demo"
+matchzy_backup_upload_url "https://your-g5api.example.com/v2/backup"
+```
+
+G5API sets these values automatically when it loads a match on the server via the RCON integration.
+
+<Warning>
+  The API key is match-scoped. A new key is generated for every match. Do not reuse keys across matches.
+</Warning>

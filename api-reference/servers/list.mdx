@@ -1,0 +1,98 @@
+---
+title: 'List servers'
+description: 'Retrieve game servers visible to the authenticated user based on their access level.'
+---
+
+`GET /servers`
+
+Returns a list of game servers. The fields returned and the set of servers visible depend on the requesting user's role:
+
+| Role | Servers returned | Fields included |
+|------|------------------|-----------------|
+| Super admin | All servers | All fields including `rcon_password` (decrypted) |
+| Admin | All servers | All fields except `rcon_password` |
+| Regular user | Public servers only | `id`, `in_use`, `display_name`, `name`, `public_server`, `flag` |
+
+<Warning>
+  Authentication is required for all roles. Unauthenticated requests will be rejected.
+</Warning>
+
+## Response
+
+<ResponseField name="servers" type="object[]">
+  Array of game server objects. Fields vary by role — see the table above.
+  <Expandable title="server properties">
+    <ResponseField name="id" type="integer">
+      Unique identifier for the server.
+    </ResponseField>
+    <ResponseField name="user_id" type="integer">
+      ID of the user who registered the server. Visible to admins and super admins.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Username of the server owner.
+    </ResponseField>
+    <ResponseField name="in_use" type="integer">
+      `1` if the server is currently hosting a match, `0` otherwise.
+    </ResponseField>
+    <ResponseField name="display_name" type="string">
+      Human-readable server name.
+    </ResponseField>
+    <ResponseField name="ip_string" type="string">
+      IP address or hostname of the server. Visible to admins and super admins.
+    </ResponseField>
+    <ResponseField name="port" type="integer">
+      Game server port. Visible to admins and super admins.
+    </ResponseField>
+    <ResponseField name="rcon_password" type="string">
+      RCON password (decrypted). Visible to super admins only.
+    </ResponseField>
+    <ResponseField name="public_server" type="integer">
+      `1` if the server is available to all users, `0` otherwise.
+    </ResponseField>
+    <ResponseField name="flag" type="string">
+      Two-letter country code associated with the server.
+    </ResponseField>
+    <ResponseField name="gotv_port" type="integer">
+      Optional GOTV spectator port.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request GET \
+  --url https://your-g5api-host.com/servers \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE'
+```
+
+</CodeGroup>
+
+```json Response (super admin)
+{
+  "servers": [
+    {
+      "id": 5,
+      "user_id": 1,
+      "name": "adminuser",
+      "in_use": 0,
+      "display_name": "EU Match Server 1",
+      "ip_string": "192.0.2.10",
+      "port": 27015,
+      "rcon_password": "supersecret",
+      "public_server": 1,
+      "flag": "DE",
+      "gotv_port": 27020
+    }
+  ]
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `500`  | Internal server error. |

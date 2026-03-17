@@ -1,0 +1,135 @@
+---
+title: "Redis configuration"
+description: "Configure Redis session storage for G5API, including connection URL, TTL, and when Redis is optional vs. recommended."
+---
+
+G5API can store Express sessions either in memory or in Redis. Redis is optional but recommended for any deployment that may restart the process or run multiple instances.
+
+## Configuration keys
+
+<ParamField body="server.useRedis" type="boolean" default="false">
+  Set to `true` to enable Redis-backed sessions. When `false`, sessions are stored in the default in-process memory store — sessions are lost on every process restart.
+
+  ```json
+  "useRedis": true
+  ```
+
+  The Docker Compose example ships with `USEREDIS=true`. The test template sets this to `false` so tests do not depend on a Redis instance.
+</ParamField>
+
+<ParamField body="server.redisUrl" type="string">
+  Redis connection URL. Required when `useRedis` is `true`. Passed directly to the `redis` client's `createClient({ url })` call.
+
+  Format: `redis://[:<password>@]<host>:<port>[/<db>]`
+
+  ```json
+  "redisUrl": "redis://:super_secure@localhost:6379"
+  ```
+</ParamField>
+
+<ParamField body="server.redisTTL" type="number" default="86400">
+  Time-to-live for session keys in Redis, in seconds. After this duration of inactivity a session is automatically evicted.
+
+  The default `86400` equals 24 hours. The Express session cookie is also set to `maxAge: 86400000` milliseconds (24 hours), so the two values are aligned by default.
+
+  ```json
+  "redisTTL": 86400
+  ```
+</ParamField>
+
+## Redis URL examples
+
+<CodeGroup>
+
+```text Local Redis without auth
+redis://localhost:6379
+```
+
+```text Local Redis with password
+redis://:your_password@localhost:6379
+```
+
+```text Docker Compose service (matches docker-compose.yml)
+redis://:super_secure_password_change_me@redis:6379
+```
+
+```text Remote Redis on custom port
+redis://:your_password@redis.example.com:6380
+```
+
+```text Redis with database index
+redis://:your_password@localhost:6379/1
+```
+
+</CodeGroup>
+
+## When Redis is optional vs. recommended
+
+### Optional (in-process sessions are fine)
+
+- Local development — process restarts are intentional and session loss is acceptable
+- Running the test suite — the test template sets `useRedis: false` explicitly
+- Single-user or short-lived evaluation installs where persistent sessions are not required
+
+### Recommended
+
+- Any production deployment — process crashes or restarts (PM2 restarts, container restarts) will log out all users if sessions are in-memory
+- Deployments managed by PM2 in cluster mode — multiple Node.js processes do not share in-process memory
+- Deployments behind a load balancer with multiple G5API containers
+
+<Note>
+G5API gracefully falls back to in-memory sessions when `useRedis` is `false`. The application starts and functions normally; only session persistence across restarts is lost.
+</Note>
+
+## Docker Compose Redis service
+
+The provided `docker-compose.yml` includes a Redis 6 service secured with a password:
+
+```yaml
+redis:
+  image: redis:6
+  command: redis-server --requirepass super_secure_password_change_me
+  container_name: redis
+  networks:
+    - get5
+  restart: always
+```
+
+The corresponding G5API environment variables:
+
+```yaml
+environment:
+  - REDISURL=redis://:super_secure_password_change_me@redis:6379
+  - REDISTTL=86400
+  - USEREDIS=true
+```
+
+<Warning>
+Change the Redis password from `super_secure_password_change_me` before deploying. The password must match in both the `redis-server --requirepass` command and the `REDISURL` environment variable.
+</Warning>
+
+## How G5API connects to Redis
+
+When `server.useRedis` is `true`, G5API connects at startup using the `redis` v4 client:
+
+```typescript
+const redisClient = createClient({
+  url: config.get("server.redisUrl"),
+});
+await redisClient.connect();
+```
+
+Sessions are stored via `connect-redis` as a drop-in replacement for the default memory store. The session name is always `G5API`.
+
+If the Redis connection fails after startup, errors are logged to the console (`Redis error: ...`) but the process does not exit. Requests that require session access may fail until the connection is restored.
+
+## Session lifetime
+
+The cookie `maxAge` is hardcoded to `86400000` ms (24 hours) in `app.ts`. The `redisTTL` value controls when Redis evicts the server-side session data. Keep the two values aligned:
+
+| Setting | Location | Default | Unit |
+|---------|----------|---------|------|
+| Cookie `maxAge` | `app.ts` (hardcoded) | `86400000` | milliseconds |
+| `server.redisTTL` | Config file | `86400` | seconds |
+
+Both defaults equal 24 hours. If you increase `redisTTL`, users with existing cookies can continue their sessions for longer after their last request.

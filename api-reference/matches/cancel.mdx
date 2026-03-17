@@ -1,0 +1,60 @@
+---
+title: "Cancel Match"
+description: "Cancel a live or pending match, releasing the game server."
+---
+
+## Overview
+
+Cancels the specified match, provided it has not already finished. The authenticated user must own the match or be a super-admin.
+
+When a match is cancelled:
+- The match record is updated with `cancelled = 1`, `team1_score = 0`, `team2_score = 0`, and the current timestamp as `end_time`.
+- The assigned game server is marked as available (`in_use = 0`).
+- The get5 plugin on the game server is instructed to end the match via RCON.
+- For PUG matches, temporary team records are cleaned up.
+
+<Note>
+  This endpoint uses `GET` — no request body is required. Authentication is required.
+</Note>
+
+## Endpoint
+
+```
+GET /matches/:match_id/cancel
+```
+
+## Path Parameters
+
+<ParamField path="match_id" type="integer" required>
+  The ID of the match to cancel.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Match has been cancelled successfully."`
+</ResponseField>
+
+## Example
+
+```bash
+curl https://your-g5api.example.com/matches/42/cancel \
+  -H "Cookie: session=YOUR_SESSION"
+```
+
+### Response
+
+```json
+{
+  "message": "Match has been cancelled successfully."
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Match is already finished. |
+| `403`  | You do not have permission to cancel this match. |
+| `404`  | No match found with the given ID. |
+| `500`  | Internal server error or game server communication failure. |

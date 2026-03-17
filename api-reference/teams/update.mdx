@@ -1,0 +1,115 @@
+---
+title: 'Update team'
+description: 'Update an existing team name, flag, logo, tag, visibility, or roster members.'
+---
+
+`PUT /teams`
+
+Updates an existing team's metadata and roster. Only the team owner or a super admin can update a team. Any `auth_name` entries that do not already exist will be inserted as new roster members.
+
+<Warning>
+  Authentication is required. You must be the team owner or a super admin to update a team.
+</Warning>
+
+## Request body
+
+The request body must be a JSON array with a single update object at index `0`. Only include fields you want to change — `null` values are excluded from the update.
+
+<ParamField body="id" type="integer" required>
+  The ID of the team to update.
+</ParamField>
+
+<ParamField body="user_id" type="integer">
+  Reassign team ownership to a different user ID.
+</ParamField>
+
+<ParamField body="name" type="string">
+  New display name for the team.
+</ParamField>
+
+<ParamField body="flag" type="string">
+  Updated two-letter country code for the in-game flag.
+</ParamField>
+
+<ParamField body="logo_file" type="string">
+  Base64-encoded PNG or SVG image to replace the existing logo. If the team already has a logo, the existing file is overwritten. Accepts `data:image/png;base64,` or `data:image/svg+xml;base64,` prefixes.
+</ParamField>
+
+<ParamField body="tag" type="string">
+  Updated short team tag.
+</ParamField>
+
+<ParamField body="public_team" type="integer">
+  `1` for public, `0` for private.
+</ParamField>
+
+<ParamField body="auth_name" type="object">
+  Object mapping Steam IDs to updated player auth objects. Existing members are updated; new entries are inserted.
+  <Expandable title="auth object properties">
+    <ResponseField name="name" type="string">
+      Updated player display name.
+    </ResponseField>
+    <ResponseField name="captain" type="boolean">
+      Whether this player is the team captain.
+    </ResponseField>
+    <ResponseField name="coach" type="boolean">
+      Whether this player is the team coach.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  Confirmation message: `"Team successfully updated"`
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request PUT \
+  --url https://your-g5api-host.com/teams \
+  --header 'Content-Type: application/json' \
+  --cookie 'connect.sid=YOUR_SESSION_COOKIE' \
+  --data '[
+    {
+      "id": 12,
+      "name": "Natus Vincere",
+      "flag": "UA",
+      "tag": "NaVi",
+      "public_team": 1,
+      "auth_name": {
+        "76561198012345678": {
+          "name": "s1mple",
+          "captain": 1,
+          "coach": 0
+        },
+        "76561198099999999": {
+          "name": "electronic",
+          "captain": 0,
+          "coach": 0
+        }
+      }
+    }
+  ]'
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "message": "Team successfully updated"
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | User is not authenticated. |
+| `403`  | User is not the team owner or a super admin. |
+| `404`  | Team does not exist. |
+| `412`  | No update data was provided. |
+| `500`  | Internal server error. |

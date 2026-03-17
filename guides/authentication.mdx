@@ -1,0 +1,169 @@
+---
+title: Authentication
+description: How to authenticate with G5API using Steam OAuth, local login, or API key bearer tokens.
+---
+
+G5API supports three authentication mechanisms: Steam OpenID OAuth (the primary method), local username/password login (when enabled by the server operator), and API key bearer token authentication for programmatic access.
+
+## Steam OAuth
+
+Steam authentication uses Passport.js with `passport-steam` and the OpenID 2.0 protocol. When a user logs in through Steam for the first time, G5API automatically creates an account, generates an API key, and seeds a default map pool.
+
+<Steps>
+  <Step title="Redirect the user to Steam">
+    Send the user to the Steam login page:
+
+    ```bash
+    GET /auth/steam
+    ```
+
+    Steam will prompt the user to authorize your application.
+  </Step>
+
+  <Step title="Steam redirects back">
+    Steam redirects the authenticated user back to:
+
+    ```bash
+    GET /auth/steam/return
+    ```
+
+    G5API's Passport middleware verifies the Steam OpenID assertion, looks up (or creates) the user record, and establishes a session.
+  </Step>
+
+  <Step title="Session cookie is set">
+    A session cookie named `G5API` is set in the browser. Its `maxAge` is 86400000 ms (24 hours). All subsequent requests from the browser are authenticated via this cookie.
+
+    On success, the browser is redirected to `server.clientHome` (configured in your G5API config file).
+  </Step>
+</Steps>
+
+<Note>
+  When a user logs in for the first time via Steam, G5API automatically inserts seven default maps into their map pool: `de_inferno`, `de_ancient`, `de_mirage`, `de_nuke`, `de_anubis`, `de_dust2`, and `de_vertigo`.
+</Note>
+
+## Local Login
+
+Local login uses a username and password and must be explicitly enabled in the server configuration (`server.localLoginEnabled`). Registration also requires a Steam64 ID — G5API uses it to look up the user's Steam display name.
+
+<Warning>
+  Local logins are disabled by default. If `server.localLoginEnabled` is `false`, both `/register` and `/login` will return an error message.
+</Warning>
+
+### Registration
+
+```bash
+POST /register
+Content-Type: application/json
+
+{
+  "username": "myuser",
+  "password": "mysecretpassword",
+  "steam_id": "76561198012345678"
+}
+```
+
+G5API validates the Steam64 ID, hashes the password with bcrypt (10 rounds), generates a 64-character API key, inserts the user, and seeds the default map pool.
+
+**Response:**
+
+```json
+{ "message": "Success!" }
+```
+
+### Login
+
+```bash
+POST /login
+Content-Type: application/json
+
+{
+  "username": "myuser",
+  "password": "mysecretpassword"
+}
+```
+
+G5API looks up the user by username, compares the provided password against the stored bcrypt hash, and establishes a session on success.
+
+**Response:**
+
+```json
+{ "message": "Success!" }
+```
+
+## API Key Authentication
+
+Every user has a 64-character API key stored (AES-encrypted) in the database. When retrieved, it is returned in the format `<user_id>:<api_key>`. Pass this value in the `user-api` request header for stateless authentication:
+
+```bash
+curl -H "user-api: 42:ABCDEF..." https://your-g5api.example.com/matches
+```
+
+G5API splits the header on `:`, looks up the user by ID, decrypts the stored key, and compares it against the provided half. If they match, `req.user` is populated and the request proceeds.
+
+<Tip>
+  Retrieve your API key by calling `GET /users/:user_id` while authenticated. The `api_key` field is only returned when you request your own profile (or when a super admin requests any profile).
+</Tip>
+
+### Rotating Your API Key
+
+To generate a new API key, send a `PUT /users` request with `new_api: 1`:
+
+```bash
+curl -X PUT https://your-g5api.example.com/users \
+  -H "user-api: 42:ABCDEF..." \
+  -H "Content-Type: application/json" \
+  -d '[{"steam_id": "76561198012345678", "new_api": 1}]'
+```
+
+## Session-Based Authentication
+
+For browser clients, G5API uses `express-session`. Sessions can be backed by an in-memory store or Redis (configured with `server.useRedis` and `server.redisUrl`). The session cookie is named `G5API`.
+
+## Checking Login Status
+
+```bash
+GET /isloggedin
+```
+
+Returns the current user object if authenticated, or `false` if not:
+
+```json
+{
+  "id": 42,
+  "steam_id": "76561198012345678",
+  "name": "PlayerName",
+  "admin": 0,
+  "super_admin": 1,
+  "api_key": "42:ABCDEF..."
+}
+```
+
+## Logging Out
+
+```bash
+GET /logout
+```
+
+Destroys the session and redirects to `/`.
+
+## Roles and Permissions
+
+G5API has three permission levels:
+
+<CardGroup cols={3}>
+  <Card title="Regular User" icon="user">
+    Can create and manage their own matches, teams, servers, and seasons.
+  </Card>
+  <Card title="Admin" icon="shield">
+    `admin = 1`. Can manage other users' resources and create users via `POST /users`.
+  </Card>
+  <Card title="Super Admin" icon="shield-check">
+    `super_admin = 1`. Full access including viewing private match configs and force-updating any resource.
+  </Card>
+</CardGroup>
+
+Roles are configured in the G5API config file under `super_admins.steam_ids` and `admins.steam_ids` as comma-separated Steam64 ID lists. These lists are checked on every Steam login and the user's `admin`/`super_admin` flags are updated accordingly.
+
+<Note>
+  Admin flags are re-evaluated on every Steam login. Changes to the config file take effect the next time a user authenticates via Steam.
+</Note>

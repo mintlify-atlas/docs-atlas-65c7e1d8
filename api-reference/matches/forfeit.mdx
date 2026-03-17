@@ -1,0 +1,80 @@
+---
+title: "Forfeit Match"
+description: "Forfeit a live match and declare a winner by team position."
+---
+
+## Overview
+
+Forfeits the specified match, assigning a winner by team position (`1` for team one, `2` for team two). The authenticated user must own the match or be a super-admin.
+
+When a match is forfeited:
+- The winning team is awarded a 16–0 map score.
+- The match series score is updated (winner gets 1, loser gets 0).
+- `end_time` is set to the current timestamp.
+- The assigned game server is marked as available (`in_use = 0`).
+- The get5 plugin is instructed to end the match via RCON.
+- For PUG matches, player stats are updated and temporary team records are cleaned up.
+
+<Note>
+  This endpoint uses `GET` — no request body is required. Authentication is required.
+</Note>
+
+<Warning>
+  `winner_id` is a positional value (`1` or `2`), not a team database ID. `1` refers to `team1_id` and `2` refers to `team2_id` on the match record.
+</Warning>
+
+## Endpoint
+
+```
+GET /matches/:match_id/forfeit/:winner_id
+```
+
+## Path Parameters
+
+<ParamField path="match_id" type="integer" required>
+  The ID of the match to forfeit.
+</ParamField>
+
+<ParamField path="winner_id" type="integer" required>
+  The winning team's position: `1` for team one, `2` for team two.
+</ParamField>
+
+## Response
+
+<ResponseField name="message" type="string">
+  `"Match has been forfeitted successfully."`
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Team 1 wins by forfeit
+curl https://your-g5api.example.com/matches/42/forfeit/1 \
+  -H "Cookie: session=YOUR_SESSION"
+```
+
+```bash Team 2 wins by forfeit
+curl https://your-g5api.example.com/matches/42/forfeit/2 \
+  -H "Cookie: session=YOUR_SESSION"
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "message": "Match has been forfeitted successfully."
+}
+```
+
+## Error Responses
+
+| Status | Description |
+|--------|-------------|
+| `401`  | Match is already finished. |
+| `403`  | You do not have permission to forfeit this match. |
+| `404`  | No match found with the given ID. |
+| `412`  | Invalid `winner_id` — must be `1` or `2`. |
+| `500`  | Internal server error or game server communication failure. |

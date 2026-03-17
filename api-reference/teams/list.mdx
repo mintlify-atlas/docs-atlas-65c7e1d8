@@ -1,0 +1,110 @@
+---
+title: 'List teams'
+description: 'Retrieve all teams registered in the system, including public teams and teams owned by the authenticated user.'
+---
+
+`GET /teams`
+
+Returns all teams in the system ordered by ID descending. Each team includes its roster with Steam IDs, player names, captain flags, and coach flags. Steam profile images are fetched automatically for each player.
+
+<Note>
+  This endpoint is public and does not require authentication. Both public and private teams are returned.
+</Note>
+
+## Response
+
+<ResponseField name="teams" type="object[]">
+  Array of team objects.
+  <Expandable title="team properties">
+    <ResponseField name="id" type="integer">
+      Unique identifier for the team.
+    </ResponseField>
+    <ResponseField name="user_id" type="integer">
+      ID of the user who owns the team.
+    </ResponseField>
+    <ResponseField name="owner" type="string">
+      Username of the team owner.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Display name of the team.
+    </ResponseField>
+    <ResponseField name="flag" type="string">
+      Two-letter country code used to display a flag in-game. See the [Steam flag workshop item](https://steamcommunity.com/sharedfiles/filedetails/?id=719079703) for valid values.
+    </ResponseField>
+    <ResponseField name="logo" type="string">
+      Filename of the team logo stored on the server (without extension).
+    </ResponseField>
+    <ResponseField name="tag" type="string">
+      Short tag or abbreviation for the team.
+    </ResponseField>
+    <ResponseField name="public_team" type="boolean">
+      Whether the team is visible and usable by all users.
+    </ResponseField>
+    <ResponseField name="auth_name" type="object">
+      Map of Steam IDs to player auth objects.
+      <Expandable title="auth object properties">
+        <ResponseField name="name" type="string">
+          Player display name. Falls back to Steam username if empty.
+        </ResponseField>
+        <ResponseField name="captain" type="boolean">
+          Whether this player is the team captain.
+        </ResponseField>
+        <ResponseField name="coach" type="boolean">
+          Whether this player is the team coach.
+        </ResponseField>
+        <ResponseField name="image" type="string">
+          URL of the player's Steam profile image.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl --request GET \
+  --url https://your-g5api-host.com/teams
+```
+
+</CodeGroup>
+
+```json Response
+{
+  "teams": [
+    {
+      "id": 12,
+      "user_id": 3,
+      "owner": "adminuser",
+      "name": "NaVi CS2",
+      "flag": "UA",
+      "logo": "ab3f2",
+      "tag": "NaVi",
+      "public_team": 1,
+      "auth_name": {
+        "76561198012345678": {
+          "name": "s1mple",
+          "captain": 1,
+          "coach": 0,
+          "image": "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars/ab/ab3f.jpg"
+        },
+        "76561198087654321": {
+          "name": "b1t",
+          "captain": 0,
+          "coach": 0,
+          "image": "https://steamcdn-a.akamaihd.net/steamcommunity/public/images/avatars/cd/cd4e.jpg"
+        }
+      }
+    }
+  ]
+}
+```
+
+## Error responses
+
+| Status | Description |
+|--------|-------------|
+| `404`  | No teams found in the system. |
+| `500`  | Internal server error. |

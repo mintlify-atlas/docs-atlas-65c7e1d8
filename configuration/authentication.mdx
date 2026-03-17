@@ -1,0 +1,176 @@
+---
+title: "Authentication configuration"
+description: "Configure Steam OAuth, local login, session secrets, admin Steam IDs, CORS origin, and API URL for G5API."
+---
+
+G5API supports two authentication strategies — Steam OpenID (default) and local username/password — managed via [Passport.js](https://www.passportjs.org/). Both strategies are controlled by keys in the `server` section of your config file.
+
+## Steam authentication
+
+### steamAPIKey
+
+<ParamField body="server.steamAPIKey" type="string" required>
+  Your Steam Web API key. G5API passes this to `passport-steam` to validate OpenID assertions and fetch player profiles.
+
+  Obtain a key at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey). The key is tied to your Steam account and should be kept secret.
+
+  ```json
+  "steamAPIKey": "ABCDEF1234567890ABCDEF1234567890"
+  ```
+</ParamField>
+
+### apiURL
+
+<ParamField body="server.apiURL" type="string" required>
+  The publicly reachable base URL of the G5API instance. Steam's OpenID flow redirects back to `{apiURL}/auth/steam/return` after the user authenticates.
+
+  The value must match the URL Steam sends callbacks to — mismatches cause authentication failures.
+
+  ```json
+  "apiURL": "https://yourdomain.com/api"
+  ```
+</ParamField>
+
+<Note>
+`apiURL` is used both as the Steam OpenID `realm` and the `returnURL`. It must be reachable from the public internet during the OAuth handshake, even in staging environments.
+</Note>
+
+## Session configuration
+
+### sharedSecret
+
+<ParamField body="server.sharedSecret" type="string" required>
+  The secret used to sign the `G5API` session cookie via `express-session`. Choose a long, random string. Anyone who obtains this value can forge session cookies.
+
+  ```json
+  "sharedSecret": "a-very-long-random-string-at-least-32-chars"
+  ```
+</ParamField>
+
+<Warning>
+Never commit `sharedSecret` to source control. Use an environment variable (Docker: `SHAREDSECRET`) or a secrets manager in production.
+</Warning>
+
+### dbKey
+
+<ParamField body="server.dbKey" type="string" required>
+  A 16-byte key used to AES-encrypt each user's API key before storing it in the database. The development template ships with the placeholder `"Database 16 Byte Key."` — replace it with exactly 16 characters.
+
+  ```json
+  "dbKey": "MySecretKey12345"
+  ```
+</ParamField>
+
+<Warning>
+Changing `dbKey` after users exist will corrupt all stored API keys, requiring every user to regenerate theirs. Set it once and keep it stable.
+</Warning>
+
+## Local login
+
+### localLoginEnabled
+
+<ParamField body="server.localLoginEnabled" type="boolean" default="false">
+  Enables the local username/password authentication strategy (`POST /login`, `POST /register`). When `false`, the `/login` and `/register` endpoints immediately return an error.
+
+  The test and development templates ship with this set to `true`. The production template defaults it to the `$LOCALLOGINS` environment variable (Docker: `LOCALLOGINS=false`).
+
+  ```json
+  "localLoginEnabled": true
+  ```
+</ParamField>
+
+<Note>
+Local login requires a `steam_id` body parameter on `/register`. Users registered locally are still associated with a Steam ID — they just authenticate with a password instead of the OpenID flow.
+</Note>
+
+The local login endpoints:
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/login` | Authenticate with `username` + `password` |
+| `POST` | `/register` | Create a new local account with `username`, `password`, and `steam_id` |
+| `GET` | `/logout` | Destroy the current session |
+
+## CORS
+
+### clientHome
+
+<ParamField body="server.clientHome" type="string" required>
+  The origin that is allowed to make cross-origin requests to the API. G5API passes this directly to the `cors` middleware as `origin`.
+
+  Set this to the URL of your front-end application (e.g., G5V):
+
+  ```json
+  "clientHome": "https://yourdomain.com"
+  ```
+
+  After Steam authentication succeeds, the server redirects the user back to `clientHome`.
+</ParamField>
+
+<Warning>
+Do not set `clientHome` to `"*"` — G5API uses `credentials: true` on the CORS middleware, which is incompatible with a wildcard origin and will be rejected by browsers.
+</Warning>
+
+## Admin Steam IDs
+
+Admin roles are determined at login time by comparing the authenticated user's Steam ID against these lists. The lists are re-evaluated on every login.
+
+### admins.steam_ids
+
+<ParamField body="admins.steam_ids" type="string">
+  A comma-separated list of Steam64 IDs that should receive the `admin` role. Admins can create and manage matches, teams, and servers.
+
+  ```json
+  "admins": {
+    "steam_ids": "76561198000000001,76561198000000002"
+  }
+  ```
+</ParamField>
+
+### super_admins.steam_ids
+
+<ParamField body="super_admins.steam_ids" type="string">
+  A comma-separated list of Steam64 IDs that should receive the `super_admin` role. Super admins have full access to all resources and can manage other users.
+
+  ```json
+  "super_admins": {
+    "steam_ids": "76561198000000003"
+  }
+  ```
+</ParamField>
+
+<Tip>
+Steam64 IDs are 17-digit integers beginning with `765`. You can look up any Steam profile's ID at [steamid.io](https://steamid.io) or via `steam://` links. The development template uses placeholder strings (`"admins,go,here"`) — replace these before running in any environment where role enforcement matters.
+</Tip>
+
+## How roles are assigned
+
+When a user logs in via Steam or registers locally, G5API checks both lists:
+
+```
+if steam_id in super_admins.steam_ids → super_admin = 1
+else if steam_id in admins.steam_ids  → admin = 1
+else                                  → regular user
+```
+
+The role is stored in the `user` table and updated on every subsequent login. Changing the admin lists takes effect the next time each affected user logs in.
+
+## Authentication flow (Steam)
+
+<Steps>
+  <Step title="User visits /auth/steam">
+    The browser is redirected to Steam's OpenID endpoint with `realm` and `returnURL` set to `server.apiURL`.
+  </Step>
+  <Step title="User authenticates on Steam">
+    Steam validates the user's credentials and redirects to `{apiURL}/auth/steam/return`.
+  </Step>
+  <Step title="G5API validates the callback">
+    `passport-steam` verifies the OpenID assertion using `server.steamAPIKey`. The user's profile is fetched from the Steam API.
+  </Step>
+  <Step title="User record is created or updated">
+    G5API checks the `user` table. New users are inserted with a generated API key and default map list. Existing users have their profile images and role flags updated.
+  </Step>
+  <Step title="Session is established">
+    The session is stored (in Redis if `useRedis` is `true`, otherwise in memory). The browser is redirected to `server.clientHome`.
+  </Step>
+</Steps>

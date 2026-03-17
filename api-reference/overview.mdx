@@ -1,0 +1,69 @@
+---
+title: 'Overview'
+description: 'Base URL, content type, error format, and HTTP status codes for the G5API REST API.'
+---
+
+G5API is an Express/TypeScript REST API for managing CS2 matches via the [get5](https://github.com/nicksergeant/get5) plugin. All endpoints return JSON.
+
+## Base URL
+
+The API runs on port `3301` by default. Replace `your-server` with your host:
+
+```
+http://your-server:3301
+```
+
+All requests must include the `Content-Type: application/json` header when sending a request body.
+
+## Interactive docs
+
+Swagger UI is available at `/api-docs` when the server is running:
+
+```
+http://your-server:3301/api-docs
+```
+
+## Authentication
+
+G5API supports three authentication methods. See [Authentication](/api-reference/authentication) for full details.
+
+| Method | How to use |
+|--------|------------|
+| Session cookie | Log in via Steam OAuth or local login; the `G5API` session cookie is set automatically |
+| Bearer token | Send `Authorization: Bearer <user_id>:<api_key>` on each request |
+| API key | Same value as Bearer token; retrieve from your user profile |
+
+## Rate limiting
+
+The API uses `express-rate-limit`. Exceeding the limit returns `429 Too Many Requests`.
+
+## Error format
+
+All error responses use this shape:
+
+```json
+{
+  "error": "Descriptive error message"
+}
+```
+
+Some routes also return a `message` field on success or informational responses:
+
+```json
+{
+  "message": "User successfully updated!"
+}
+```
+
+## HTTP status codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `400` | Bad request — malformed input |
+| `401` | Unauthenticated — no valid session or token |
+| `403` | Forbidden — authenticated but not authorized |
+| `404` | Resource not found |
+| `412` | Precondition failed — nothing to update |
+| `429` | Too many requests — rate limit exceeded |
+| `500` | Internal server error |

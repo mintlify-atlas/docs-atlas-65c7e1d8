@@ -1,0 +1,238 @@
+---
+title: Match Lifecycle
+description: How a CS2 match progresses from creation to completion, including plugin callbacks and cancellation.
+---
+
+A match in G5API moves through several states from the moment it is created until it is finalized. This guide walks through the full lifecycle, from the initial `POST /matches` call through plugin callbacks and final results.
+
+## Match States
+
+| State | Description |
+|-------|-------------|
+| **Pending** | Match created, no `start_time`, no `end_time`, not cancelled. |
+| **Live** | `going_live` event received from the plugin; `start_time` is set. |
+| **Ended** | `series_end` event received; `end_time` and `winner` are set. |
+| **Cancelled** | `cancelled = 1`; match was manually cancelled or series ended with no maps played. |
+| **Forfeited** | `forfeit = 1`; match was forfeited by a team. |
+
+## Creating a Match
+
+Requires authentication. Send a `POST /matches` request with a JSON array containing one match object:
+
+```bash
+curl -X POST https://your-g5api.example.com/matches \
+  -H "user-api: 42:ABCDEF..." \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "team1_id": 1,
+    "team2_id": 2,
+    "server_id": 3,
+    "max_maps": 3,
+    "title": "Grand Final",
+    "skip_veto": false,
+    "veto_first": "team1",
+    "veto_mappool": "de_inferno de_mirage de_nuke de_ancient de_anubis de_dust2 de_vertigo",
+    "side_type": "standard",
+    "season_id": 5,
+    "enforce_teams": true,
+    "min_players_to_ready": 5
+  }]'
+```
+
+**Response:**
+
+```json
+{
+  "message": "Match inserted successfully!",
+  "id": 101
+}
+```
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `team1_id` | integer | Database ID of team 1. |
+| `team2_id` | integer | Database ID of team 2. |
+| `max_maps` | integer | Number of maps in the series (e.g., 1, 3, 5). |
+| `title` | string | Match title. Default pattern is `Map {MAPNUMBER} of {MAXMAPS}`. |
+| `skip_veto` | boolean | Whether to skip the in-game map veto. |
+
+### Optional Fields
+
+<Accordion title="All optional match fields">
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `server_id` | integer | Game server to use. Can be null and assigned later. |
+| `season_id` | integer | Link this match to a season. |
+| `start_time` | datetime | Scheduled start time. |
+| `veto_first` | string | `team1` or `team2` — who vetos first. |
+| `veto_mappool` | string | Space-separated map names. |
+| `side_type` | string | `standard`, `always_knife`, `never_knife`. Defaults to `standard`. |
+| `spectator_auths` | object | Key-value pairs of Steam64 IDs and spectator names. |
+| `private_match` | boolean | Limits visibility to team members and players with map stats. Defaults to `false`. |
+| `enforce_teams` | boolean | Server enforces team assignments. Defaults to `true`. |
+| `ignore_server` | boolean | Create the match record without connecting to a game server. |
+| `min_players_to_ready` | integer | Minimum players per team needed to ready up. Defaults to 5. |
+| `players_per_team` | integer | Players per team. Defaults to 5. |
+| `match_cvars` | object | Key-value pairs of additional CVARs sent to the server. |
+| `wingman` | boolean | Enable wingman (2v2) mode. |
+| `is_pug` | boolean | PUG mode — teams are not required and are cleaned up after the match. |
+| `map_sides` | string | Comma-separated starting sides per map (used when `skip_veto` is true). |
+| `onsite_veto` | boolean | Whether the veto happens on-site rather than in-game. |
+
+</Accordion>
+
+### Server Connection on Creation
+
+When a `server_id` is provided and `ignore_server` is not set, G5API immediately:
+
+1. Checks that the server is not already `in_use`.
+2. Verifies that the get5 plugin is available on the server via RCON.
+3. Records the get5 plugin version in the match row.
+4. Calls `get5_loadmatch_url` via RCON, pointing the plugin at `GET /matches/:id/config`.
+5. Marks the server as `in_use = 1`.
+
+If any step fails, the match record and associated CVARs/spectators are deleted and the server is released.
+
+## Match Configuration Endpoint
+
+The get5 plugin fetches its configuration from:
+
+```bash
+GET /matches/:match_id/config
+```
+
+For plugin versions `>= 0.13.1`, the `Authorization` header must contain the match API key. The response includes team rosters, map pool, CVARs, and the remote log URL (`/v2`) so the plugin can send back events.
+
+## Plugin Callbacks via /v2
+
+All get5 plugin events are delivered to a single endpoint:
+
+```bash
+POST /v2
+Authorization: <match_api_key>
+Content-Type: application/json
+```
+
+The request body must include an `event` field. G5API routes the event to the appropriate service based on its value.
+
+<Tabs>
+  <Tab title="Series Events">
+
+| Event | Description |
+|-------|-------------|
+| `map_picked` | A map was picked during the veto. Stored in the `veto` table. |
+| `map_vetoed` | A map was banned during the veto. Stored in the `veto` table. |
+| `side_picked` | A team chose their starting side. Stored in `veto_side`. |
+| `backup_loaded` | A round backup was restored. Cleans up round stats from that point forward. |
+| `map_result` | A single map finished. Updates `map_stats`, records winner, updates series scores. |
+| `series_end` | The series concluded. Sets `end_time`, `winner`, series scores, and releases the server. |
+
+  </Tab>
+  <Tab title="Map Events">
+
+| Event | Description |
+|-------|-------------|
+| `going_live` | Map is starting. Sets `start_time` on the match. |
+| `round_start` | A round began. |
+| `round_end` | A round ended. Updates player stats. |
+| `player_death` | A player died. Recorded in player stat extras. |
+| `bomb_planted` | Bomb was planted. Stored in `match_bomb_plants`. |
+| `bomb_defused` | Bomb was defused. Updates the bomb plant record. |
+| `game_paused` | Match was paused. Stored in `match_pause`. |
+| `game_unpaused` | Match was unpaused. Updates `match_pause`. |
+
+  </Tab>
+</Tabs>
+
+<Note>
+  The `demo_upload_ended` event is accepted with a `200` response but not processed. The `/v2/demo` endpoint handles demo file uploads separately.
+</Note>
+
+### Example: series_end Payload
+
+```json
+{
+  "event": "series_end",
+  "matchid": "101",
+  "team1_series_score": 2,
+  "team2_series_score": 1,
+  "winner": {
+    "team": "team1",
+    "name": "Alpha Squad"
+  }
+}
+```
+
+On receiving `series_end`, G5API:
+- Sets `winner` to the winning team's database ID.
+- Sets `team1_score` and `team2_score`.
+- Sets `end_time` to the current timestamp.
+- Marks the server as `in_use = 0`.
+- If the match has a `season_id`, triggers a Challonge bracket update.
+
+## Cancelling or Forfeiting a Match
+
+Update the match via `PUT /matches`:
+
+```bash
+curl -X PUT https://your-g5api.example.com/matches \
+  -H "user-api: 42:ABCDEF..." \
+  -H "Content-Type: application/json" \
+  -d '[{
+    "match_id": 101,
+    "cancelled": 1
+  }]'
+```
+
+Or to forfeit:
+
+```bash
+-d '[{"match_id": 101, "forfeit": 1}]'
+```
+
+When `cancelled`, `forfeit`, or `end_time` is set in a PUT request and the match has a server assigned, G5API sends an end command to the game server via RCON and marks the server as `in_use = 0`.
+
+<Warning>
+  A match can only be **deleted** (via `DELETE /matches`) after it has been cancelled, forfeited, or completed. Attempting to delete an active match returns `403`.
+</Warning>
+
+## Retrieving Match Results
+
+```bash
+GET /matches/:match_id
+```
+
+Returns the full match record. The match owner and super admins see all fields. Other users see a reduced field set (private internal fields like `api_key` are hidden).
+
+**Response:**
+
+```json
+{
+  "match": {
+    "id": 101,
+    "team1_id": 1,
+    "team2_id": 2,
+    "winner": 1,
+    "team1_score": 2,
+    "team2_score": 1,
+    "start_time": "2026-03-17T14:00:00.000Z",
+    "end_time": "2026-03-17T16:30:00.000Z",
+    "cancelled": 0,
+    "forfeit": 0,
+    "season_id": 5
+  }
+}
+```
+
+### Real-Time Updates
+
+G5API exposes a Server-Sent Events stream for live match data:
+
+```bash
+GET /matches/:match_id/stream
+```
+
+The connection stays open and emits a new `matches` event whenever the match record changes (triggered by plugin callbacks). Useful for live scoreboards.

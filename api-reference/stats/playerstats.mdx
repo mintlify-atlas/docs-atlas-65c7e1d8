@@ -1,0 +1,396 @@
+---
+title: "Player Stats"
+description: "Per-player and per-map statistics for CS2 matches, including detailed kill-event data."
+---
+
+G5API tracks two layers of player statistics:
+
+- **Player Stats** (`/playerstats`) — aggregated per-map counters: kills, deaths, assists, multi-kills, clutches, damage, etc.
+- **Extra Stats** (`/playerstatsextra`) — per-death event records: weapon, headshot, smoke, blind, assister, etc.
+
+## Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/playerstats` | All player stats in the system |
+| GET | `/playerstats/unique` | Count of distinct players who have participated |
+| GET | `/playerstats/match/:match_id` | All player stats for a match |
+| GET | `/playerstats/match/:match_id/stream` | Real-time SSE stream for a match |
+| GET | `/playerstats/:steam_id` | All stats rows for a Steam64 ID |
+| GET | `/playerstats/:steam_id/pug` | Aggregated PUG stats for a player |
+| GET | `/playerstats/:steam_id/official` | Aggregated official-match stats for a player |
+| GET | `/playerstats/:steam_id/season/:season_id` | Season-scoped aggregated stats |
+| GET | `/playerstats/:steam_id/recent` | Last 5 matches the player participated in |
+| GET | `/playerstatsextra` | All extra (per-death) stats |
+| GET | `/playerstatsextra/:steam_id` | Extra stats for a Steam64 ID |
+| GET | `/playerstatsextra/:steam_id/pug` | Extra PUG stats for a player |
+| GET | `/playerstatsextra/:steam_id/official` | Extra official-match stats for a player |
+| GET | `/playerstatsextra/:steam_id/season/:season_id` | Season-scoped extra stats |
+| GET | `/playerstatsextra/match/:match_id` | Extra stats for a match |
+| GET | `/playerstatsextra/match/:match_id/stream` | Real-time SSE stream of extra stats |
+
+---
+
+## GET /playerstats
+
+Returns every player stat row stored in the system — one row per player per map played.
+
+```bash
+curl https://your-g5api.example.com/playerstats
+```
+
+**Response `200`**
+
+```json
+{
+  "playerStats": [
+    {
+      "id": 1,
+      "match_id": 42,
+      "map_id": 1,
+      "team_id": 3,
+      "steam_id": "76561198012345678",
+      "name": "playerOne",
+      "kills": 22,
+      "deaths": 14,
+      "roundsplayed": 26,
+      "assists": 5,
+      "flashbang_assists": 1,
+      "teamkills": 0,
+      "knife_kills": 0,
+      "suicides": 0,
+      "headshot_kills": 11,
+      "damage": 2840,
+      "util_damage": 120,
+      "enemies_flashed": 8,
+      "friendlies_flashed": 2,
+      "bomb_plants": 3,
+      "bomb_defuses": 1,
+      "v1": 2, "v2": 1, "v3": 0, "v4": 0, "v5": 0,
+      "k1": 6, "k2": 4, "k3": 1, "k4": 0, "k5": 0,
+      "firstdeath_ct": 1,
+      "firstdeath_t": 2,
+      "firstkill_ct": 3,
+      "firstkill_t": 2,
+      "kast": 18,
+      "contribution_score": 32,
+      "mvp": 4
+    }
+  ]
+}
+```
+
+<ResponseField name="playerStats" type="array">
+  <Expandable title="PlayerStats fields">
+    <ResponseField name="id" type="integer">Row identifier.</ResponseField>
+    <ResponseField name="match_id" type="integer" required>Match the stats belong to.</ResponseField>
+    <ResponseField name="map_id" type="integer" required>Map stat record the stats belong to.</ResponseField>
+    <ResponseField name="team_id" type="integer" required>Team the player was on.</ResponseField>
+    <ResponseField name="steam_id" type="string" required>Player's Steam64 ID.</ResponseField>
+    <ResponseField name="name" type="string" required>Player's in-game name at the time of the match.</ResponseField>
+    <ResponseField name="kills" type="integer">Total kills.</ResponseField>
+    <ResponseField name="deaths" type="integer">Total deaths.</ResponseField>
+    <ResponseField name="roundsplayed" type="integer">Rounds played.</ResponseField>
+    <ResponseField name="assists" type="integer">Total assists.</ResponseField>
+    <ResponseField name="flashbang_assists" type="integer">Assists credited via flashbang.</ResponseField>
+    <ResponseField name="teamkills" type="integer">Friendly-fire kills.</ResponseField>
+    <ResponseField name="knife_kills" type="integer">Kills with a knife.</ResponseField>
+    <ResponseField name="suicides" type="integer">Number of suicides.</ResponseField>
+    <ResponseField name="headshot_kills" type="integer">Headshot kills.</ResponseField>
+    <ResponseField name="damage" type="integer">Total damage dealt.</ResponseField>
+    <ResponseField name="util_damage" type="integer">Damage dealt with utility (grenades).</ResponseField>
+    <ResponseField name="enemies_flashed" type="integer">Enemies successfully flashed.</ResponseField>
+    <ResponseField name="friendlies_flashed" type="integer">Teammates accidentally flashed.</ResponseField>
+    <ResponseField name="bomb_plants" type="integer">Number of bomb plants.</ResponseField>
+    <ResponseField name="bomb_defuses" type="integer">Number of bomb defuses.</ResponseField>
+    <ResponseField name="v1–v5" type="integer">Clutch wins: 1v1, 1v2, 1v3, 1v4, 1v5.</ResponseField>
+    <ResponseField name="k1–k5" type="integer">Rounds where the player got 1, 2, 3, 4, or 5 kills.</ResponseField>
+    <ResponseField name="firstdeath_ct" type="integer">Times first to die as CT.</ResponseField>
+    <ResponseField name="firstdeath_t" type="integer">Times first to die as T.</ResponseField>
+    <ResponseField name="firstkill_ct" type="integer">Times first to kill as CT.</ResponseField>
+    <ResponseField name="firstkill_t" type="integer">Times first to kill as T.</ResponseField>
+    <ResponseField name="kast" type="integer">Rounds the player had a Kill, Assist, Survived, or was Traded.</ResponseField>
+    <ResponseField name="contribution_score" type="integer">Get5 contribution score for the player.</ResponseField>
+    <ResponseField name="mvp" type="integer">Number of MVP stars.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## GET /playerstats/unique
+
+Returns a count of distinct Steam IDs that have player stat records.
+
+```bash
+curl https://your-g5api.example.com/playerstats/unique
+```
+
+**Response `200`**
+
+```json
+{ "count": 128 }
+```
+
+---
+
+## GET /playerstats/match/:match_id
+
+Returns all player stat rows for a specific match (all players, all maps).
+
+<ParamField path="match_id" type="integer" required>
+  The numeric ID of the match.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstats/match/42
+```
+
+**Response `200`**
+
+```json
+{
+  "playerstats": [
+    {
+      "match_id": 42,
+      "map_id": 1,
+      "team_id": 3,
+      "steam_id": "76561198012345678",
+      "name": "playerOne",
+      "kills": 22,
+      "deaths": 14
+    }
+  ]
+}
+```
+
+---
+
+## GET /playerstats/:steam_id
+
+Returns all raw stat rows ever recorded for a player.
+
+<ParamField path="steam_id" type="string" required>
+  The player's Steam64 ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstats/76561198012345678
+```
+
+---
+
+## GET /playerstats/:steam_id/pug
+
+Returns aggregated stats for a player across all PUG (pickup game) matches.
+
+<ParamField path="steam_id" type="string" required>
+  The player's Steam64 ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstats/76561198012345678/pug
+```
+
+---
+
+## GET /playerstats/:steam_id/official
+
+Returns aggregated stats for a player across all official (non-PUG) matches.
+
+<ParamField path="steam_id" type="string" required>
+  The player's Steam64 ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstats/76561198012345678/official
+```
+
+**Response `200` — aggregated player object**
+
+```json
+{
+  "playerstats": {
+    "steamId": "76561198012345678",
+    "name": "playerOne",
+    "kills": 540,
+    "deaths": 380,
+    "assists": 95,
+    "k1": 120, "k2": 60, "k3": 18, "k4": 4, "k5": 1,
+    "v1": 22, "v2": 8, "v3": 2, "v4": 0, "v5": 0,
+    "trp": 600,
+    "fba": 14,
+    "total_damage": 68000,
+    "hsk": 220,
+    "hsp": 40.74,
+    "average_rating": 1.12,
+    "wins": 18,
+    "total_maps": 30
+  }
+}
+```
+
+---
+
+## GET /playerstats/:steam_id/season/:season_id
+
+Returns aggregated stats for a player scoped to a specific season.
+
+<ParamField path="steam_id" type="string" required>
+  The player's Steam64 ID.
+</ParamField>
+
+<ParamField path="season_id" type="integer" required>
+  The numeric season ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstats/76561198012345678/season/3
+```
+
+---
+
+## GET /playerstats/:steam_id/recent
+
+Returns the five most recent (non-cancelled) matches a player participated in.
+
+<ParamField path="steam_id" type="string" required>
+  The player's Steam64 ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstats/76561198012345678/recent
+```
+
+**Response `200`**
+
+```json
+{
+  "matches": [
+    {
+      "id": 42,
+      "user_id": 5,
+      "team1_id": 3,
+      "team2_id": 7,
+      "team1_string": null,
+      "team2_string": null
+    }
+  ]
+}
+```
+
+---
+
+## Real-time Stream — GET /playerstats/match/:match_id/stream
+
+Streams live player stat updates for a match as an SSE event stream.
+
+```bash
+curl -N -H "Accept: text/event-stream" \
+  https://your-g5api.example.com/playerstats/match/42/stream
+```
+
+Events use event name `playerstats` and carry a JSON array of all player stat rows for the match.
+
+```
+event: playerstats
+data: [{"match_id":42,"steam_id":"765...","kills":5,...}]
+```
+
+---
+
+## Extra Stats — /playerstatsextra
+
+Extra stats store one record per player death event. This enables detailed analysis like spray patterns, economy tracking, and multi-kill reconstruction.
+
+### GET /playerstatsextra
+
+```bash
+curl https://your-g5api.example.com/playerstatsextra
+```
+
+**Response `200`**
+
+```json
+{
+  "playerStatExtra": [
+    {
+      "id": 1,
+      "match_id": 42,
+      "map_id": 1,
+      "team_id": 3,
+      "player_steam_id": "76561198012345678",
+      "player_name": "playerOne",
+      "player_side": "ct",
+      "round_number": 5,
+      "round_time": 42000,
+      "attacker_steam_id": "76561198087654321",
+      "attacker_name": "playerTwo",
+      "attacker_side": "t",
+      "weapon": "weapon_ak47",
+      "bomb": false,
+      "headshot": true,
+      "thru_smoke": false,
+      "attacker_blind": false,
+      "no_scope": false,
+      "suicide": false,
+      "friendly_fire": false,
+      "assister_steam_id": null,
+      "assister_name": null,
+      "assister_side": null,
+      "assist_friendly_fire": false,
+      "flash_assist": false
+    }
+  ]
+}
+```
+
+<ResponseField name="playerStatExtra" type="array">
+  <Expandable title="PlayerStatsExtra fields">
+    <ResponseField name="player_steam_id" type="string">Steam64 ID of the player who died.</ResponseField>
+    <ResponseField name="player_name" type="string">In-game name of the player who died.</ResponseField>
+    <ResponseField name="player_side" type="string">Side the victim was on (`ct` or `t`).</ResponseField>
+    <ResponseField name="match_id" type="integer" required>Parent match ID.</ResponseField>
+    <ResponseField name="map_id" type="integer" required>Parent map stat ID.</ResponseField>
+    <ResponseField name="team_id" type="integer" required>Team ID of the victim.</ResponseField>
+    <ResponseField name="round_number" type="integer">Round the death occurred in.</ResponseField>
+    <ResponseField name="round_time" type="integer">Milliseconds into the round when death occurred.</ResponseField>
+    <ResponseField name="attacker_steam_id" type="string">Steam64 ID of the attacker.</ResponseField>
+    <ResponseField name="attacker_name" type="string">In-game name of the attacker.</ResponseField>
+    <ResponseField name="attacker_side" type="string">Side the attacker was on.</ResponseField>
+    <ResponseField name="weapon" type="string">Weapon classname (e.g. `weapon_ak47`).</ResponseField>
+    <ResponseField name="bomb" type="boolean">Whether death was caused by the bomb explosion.</ResponseField>
+    <ResponseField name="headshot" type="boolean">Whether the killing shot was a headshot.</ResponseField>
+    <ResponseField name="thru_smoke" type="boolean">Whether the kill was through smoke.</ResponseField>
+    <ResponseField name="attacker_blind" type="boolean">Whether the attacker was blinded when they fired.</ResponseField>
+    <ResponseField name="no_scope" type="boolean">Whether the kill was a no-scope.</ResponseField>
+    <ResponseField name="suicide" type="boolean">Whether the player killed themselves.</ResponseField>
+    <ResponseField name="friendly_fire" type="boolean">Whether the kill was from a teammate.</ResponseField>
+    <ResponseField name="assister_steam_id" type="string">Steam64 ID of the assist player. `null` if no assist.</ResponseField>
+    <ResponseField name="assister_name" type="string">Name of the assister.</ResponseField>
+    <ResponseField name="assister_side" type="string">Side of the assister.</ResponseField>
+    <ResponseField name="assist_friendly_fire" type="boolean">Whether the assist was friendly fire.</ResponseField>
+    <ResponseField name="flash_assist" type="boolean">Whether the assist was via flashbang.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### GET /playerstatsextra/match/:match_id
+
+<ParamField path="match_id" type="integer" required>
+  The numeric ID of the match.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstatsextra/match/42
+```
+
+### GET /playerstatsextra/:steam_id
+
+<ParamField path="steam_id" type="string" required>
+  The player's Steam64 ID.
+</ParamField>
+
+```bash
+curl https://your-g5api.example.com/playerstatsextra/76561198012345678
+```
+
+Variants `/pug`, `/official`, and `/season/:season_id` are also available with the same semantics as the regular player stats endpoints.

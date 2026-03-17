@@ -1,0 +1,166 @@
+{
+  "projectType": "api-service",
+  "projectName": "G5API",
+  "projectDescription": "A REST API backend for managing CS2 competitive matches, teams, seasons, and statistics, integrating with MatchZy and PugSharp plugins via Steam OAuth and local authentication.",
+  "theme": "sequoia",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/database",
+              "configuration/authentication",
+              "configuration/redis"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker",
+              "deployment/docker-compose",
+              "deployment/production"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/authentication",
+              "guides/match-lifecycle",
+              "guides/seasons-tournaments",
+              "guides/challonge-integration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/authentication"
+            ]
+          },
+          {
+            "group": "Users",
+            "pages": [
+              "api-reference/users/list",
+              "api-reference/users/get",
+              "api-reference/users/update",
+              "api-reference/users/delete"
+            ]
+          },
+          {
+            "group": "Teams",
+            "pages": [
+              "api-reference/teams/list",
+              "api-reference/teams/create",
+              "api-reference/teams/get",
+              "api-reference/teams/update",
+              "api-reference/teams/delete"
+            ]
+          },
+          {
+            "group": "Servers",
+            "pages": [
+              "api-reference/servers/list",
+              "api-reference/servers/create",
+              "api-reference/servers/get",
+              "api-reference/servers/update",
+              "api-reference/servers/delete"
+            ]
+          },
+          {
+            "group": "Matches",
+            "pages": [
+              "api-reference/matches/list",
+              "api-reference/matches/create",
+              "api-reference/matches/get",
+              "api-reference/matches/update",
+              "api-reference/matches/cancel",
+              "api-reference/matches/forfeit"
+            ]
+          },
+          {
+            "group": "Seasons",
+            "pages": [
+              "api-reference/seasons/list",
+              "api-reference/seasons/create",
+              "api-reference/seasons/get",
+              "api-reference/seasons/update",
+              "api-reference/seasons/delete"
+            ]
+          },
+          {
+            "group": "Statistics",
+            "pages": [
+              "api-reference/stats/mapstats",
+              "api-reference/stats/playerstats",
+              "api-reference/stats/leaderboard",
+              "api-reference/stats/vetoes"
+            ]
+          },
+          {
+            "group": "Plugin Callbacks (v2)",
+            "pages": [
+              "api-reference/v2/overview",
+              "api-reference/v2/match-events",
+              "api-reference/v2/demos",
+              "api-reference/v2/backups"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Match creation and lifecycle management for CS2 with MatchZy and PugSharp support",
+    "Steam OAuth and local username/password authentication",
+    "Team management with player rosters and Steam ID tracking",
+    "Season and tournament management with Challonge bracket integration",
+    "Automatic statistics tracking: map stats, player stats, vetoes, and leaderboards",
+    "Game server management with RCON support",
+    "Demo and backup file upload and retrieval",
+    "Redis session store support",
+    "Docker and Docker Compose deployment support",
+    "OpenAPI/Swagger documentation at /api-docs"
+  ],
+  "publicApiSurface": [
+    "GET/POST/PUT/DELETE /users",
+    "GET/POST/PUT/DELETE /teams",
+    "GET/POST/PUT/DELETE /servers",
+    "GET/POST/PUT/DELETE /matches",
+    "GET/POST/PUT/DELETE /seasons",
+    "GET/POST/PUT/DELETE /mapstats",
+    "GET/POST/PUT/DELETE /playerstats",
+    "GET /playerstatsextra",
+    "GET/POST/PUT/DELETE /vetoes",
+    "GET/POST/PUT/DELETE /vetosides",
+    "GET /leaderboard",
+    "GET/POST/PUT/DELETE /maps",
+    "POST /v2 (plugin match event callbacks)",
+    "GET/POST /v2/demo",
+    "GET/POST /v2/backup",
+    "GET /auth/steam",
+    "POST /login",
+    "POST /register",
+    "GET /logout",
+    "GET /isloggedin"
+  ]
+}
